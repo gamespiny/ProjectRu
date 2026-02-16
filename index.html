@@ -9,24 +9,28 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0d0f14;--surf:#151820;--surf2:#1c2030;--surf3:#232840;
-  --border:#252d45;--border2:#2e3a5a;
-  --accent:#4fffb0;--a2:#ff4f8b;--a3:#4fb8ff;--warn:#ffd84f;
-  --text:#e8eaf6;--t2:#8892b0;--t3:#4a5278;
-  --red:#ff4f6e;
-  --mono:'Space Mono',monospace;--sans:'Manrope',sans-serif;
+  --bg:#09090b;--surf:#18181b;--surf2:#27272a;--surf3:#3f3f46;
+  --border:#3f3f46;--border2:#52525b;
+  --accent:#10b981;--a2:#f43f5e;--a3:#3b82f6;--warn:#f59e0b;
+  --text:#fafafa;--t2:#a1a1aa;--t3:#71717a;
+  --red:#ef4444;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
   --r:10px;--r2:16px;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body,#root{min-height:100%;font-size:16px}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:hidden}
-::-webkit-scrollbar{width:4px;height:4px}
+html,body,#root{min-height:100%;font-size:17px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:hidden;line-height:1.6}
+::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:var(--surf2)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.app{max-width:960px;margin:0 auto;padding:0 14px 90px}
+.app{max-width:100%;margin:0 auto;padding:0 20px 90px}
+@media(min-width:768px){.app{padding:0 40px 90px}}
+@media(min-width:1400px){.app{padding:0 60px 90px}}
+@media(min-width:1920px){.app{max-width:1800px;padding:0 80px 90px}}
 /* header */
 .hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 0 16px;border-bottom:1px solid var(--border);margin-bottom:18px}
 .logo{display:flex;align-items:center;gap:9px}
@@ -41,10 +45,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:h
 .sc.b::before{background:linear-gradient(90deg,var(--a3),transparent)}
 .sc.w::before{background:linear-gradient(90deg,var(--warn),transparent)}
 .sc.r::before{background:linear-gradient(90deg,var(--a2),transparent)}
-.sc-lbl{font-size:.62rem;color:var(--t3);text-transform:uppercase;letter-spacing:.9px;font-weight:700;margin-bottom:6px}
-.sc-val{font-family:var(--mono);font-size:1.15rem;font-weight:700;line-height:1}
+.sc-lbl{font-size:.72rem;color:var(--t3);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px}
+.sc-val{font-family:var(--mono);font-size:1.35rem;font-weight:700;line-height:1.1}
 .sc-val.g{color:var(--accent)}.sc-val.b{color:var(--a3)}.sc-val.w{color:var(--warn)}.sc-val.r{color:var(--a2)}
-.sc-sub{font-size:.65rem;color:var(--t3);margin-top:4px}
+.sc-sub{font-size:.78rem;color:var(--t2);margin-top:5px}
 /* tabs */
 .tabs{display:flex;gap:3px;background:var(--surf);padding:3px;border-radius:var(--r);border:1px solid var(--border);margin-bottom:18px}
 .tab{flex:1;padding:8px 6px;border:none;background:transparent;color:var(--t2);font-family:var(--sans);font-size:.78rem;font-weight:700;cursor:pointer;border-radius:7px;transition:all .15s;white-space:nowrap}
@@ -58,7 +62,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:h
 .lot-head{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;user-select:none}
 .lot-badge{font-family:var(--mono);font-size:.65rem;background:var(--surf3);color:var(--t3);padding:2px 7px;border-radius:5px;flex-shrink:0}
 .lot-info{flex:1;min-width:0}
-.lot-name{font-weight:800;font-size:.88rem;line-height:1.3;color:var(--text)}
+.lot-name{font-weight:800;font-size:.98rem;line-height:1.35;color:var(--text)}
 .lot-sub{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
 .tag{display:inline-flex;align-items:center;font-size:.63rem;font-weight:700;padding:2px 7px;border-radius:20px}
 .tc{background:rgba(255,216,79,.1);color:var(--warn)}
@@ -457,11 +461,12 @@ function App(){
   const stats=useMemo(()=>{
     const invested=data.lots.reduce((s,l)=>s+(l.cost||0),0);
     const revenue=data.sales.reduce((s,x)=>s+(x.amount||0),0);
-    const profit=revenue-invested;
+    const promoCosts=data.sales.reduce((s,x)=>s+(x.promoCost||0),0);
+    const profit=revenue-invested-promoCosts;
     const margin=invested>0?profit/invested*100:0;
     const openLots=data.lots.filter(l=>computeStatus(l,data.sales)!=='sold');
     const frozen=openLots.reduce((s,l)=>s+Math.max(0,(l.cost||0)-lotSalesTotal(data.sales,l.id)),0);
-    return{invested,revenue,profit,margin,frozen,openCount:openLots.length};
+    return{invested,revenue,profit,margin,frozen,openCount:openLots.length,promoCosts};
   },[data]);
 
   const lotMonths=useMemo(()=>[...new Set(data.lots.map(l=>mKey(l.date)).filter(Boolean))].sort().reverse(),[data.lots]);
@@ -573,13 +578,31 @@ function App(){
 }
 
 function LotsTab({data,upd,expanded,toggleLot,openModal,fStatus,setFStatus,fMonth,setFMonth,lotMonths,cartDb}){
+  const[search,setSearch]=React.useState('');
   let lots=[...data.lots].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   if(fStatus)lots=lots.filter(l=>computeStatus(l,data.sales)===fStatus);
   if(fMonth)lots=lots.filter(l=>mKey(l.date)===fMonth);
+  if(search)lots=lots.filter(l=>(l.console+' '+l.color).toLowerCase().includes(search.toLowerCase()));
+  
+  const exportToExcel=()=>{
+    const ws_data=[['ID','Консоль','Цвет','Закупка','Продано','Прибыль','Статус','Дата']];
+    data.lots.forEach(lot=>{
+      const sold=lotSalesTotal(data.sales,lot.id);
+      const profit=sold-(lot.cost||0);
+      const status=computeStatus(lot,data.sales);
+      ws_data.push([lot.id.slice(-4).toUpperCase(),lot.console,lot.color,lot.cost,sold,profit,STATUS_META[status].label,fmtD(lot.date)]);
+    });
+    const wb=XLSX.utils.book_new();
+    const ws=XLSX.utils.aoa_to_sheet(ws_data);
+    XLSX.utils.book_append_sheet(wb,ws,'Лоты');
+    XLSX.writeFile(wb,'ConsoleFlip_Export_'+new Date().toISOString().split('T')[0]+'.xlsx');
+  };
+  
   return<>
     <div className="sec-hdr">
       <span className="sec-title">Лоты</span>
       <div className="filter-row">
+        <input type="text" className="search-inp" placeholder="🔍 Поиск..." value={search} onChange={e=>setSearch(e.target.value)} style={{padding:'6px 12px',background:'var(--surf2)',border:'1px solid var(--border)',borderRadius:'8px',color:'var(--text)',fontSize:'.85rem',minWidth:'180px'}}/>
         <select className="sel-sm" value={fMonth} onChange={e=>setFMonth(e.target.value)}>
           <option value="">Все месяцы</option>
           {lotMonths.map(m=>{const[y,mo]=m.split('-');return<option key={m} value={m}>{MONTHS_FULL[parseInt(mo)-1]} {y}</option>;})}
@@ -591,6 +614,7 @@ function LotsTab({data,upd,expanded,toggleLot,openModal,fStatus,setFStatus,fMont
           <option value="sold">Закрыты</option>
           <option value="parts">На запчасти</option>
         </select>
+        <button className="btn btn-g btn-sm" onClick={exportToExcel} style={{fontSize:'.78rem',padding:'6px 12px'}}>📊 Excel</button>
         <span className="sec-cnt">{lots.length}</span>
       </div>
     </div>
@@ -776,51 +800,102 @@ function HistTab({data,hMonth,setHMonth,saleMonths,openModal}){
 }
 
 function StatsTab({data,stats}){
+  const[period,setPeriod]=React.useState('all'); // all, month, quarter
+  const[selectedMonth,setSelectedMonth]=React.useState('');
+  const[selectedQuarter,setSelectedQuarter]=React.useState('');
+  const[chartType,setChartType]=React.useState('profit'); // profit, revenue
+  
+  const allMonths=useMemo(()=>[...new Set([...data.sales.map(s=>mKey(s.date)),...data.lots.map(l=>mKey(l.date))].filter(Boolean))].sort().reverse(),[data]);
+  const quarters=useMemo(()=>{const qs=new Set();allMonths.forEach(m=>{const[y,mo]=m.split('-');const q=Math.ceil(parseInt(mo)/3);qs.add(`${y}-Q${q}`);});return[...qs].sort().reverse();},[allMonths]);
+  
+  const filterData=()=>{
+    let lots=data.lots;let sales=data.sales;
+    if(period==='month'&&selectedMonth){lots=lots.filter(l=>mKey(l.date)===selectedMonth);sales=sales.filter(s=>mKey(s.date)===selectedMonth);}
+    if(period==='quarter'&&selectedQuarter){const[y,q]=selectedQuarter.split('-Q');const qn=parseInt(q);const startM=(qn-1)*3+1;const endM=qn*3;lots=lots.filter(l=>{const k=mKey(l.date);if(!k)return false;const[ly,lmo]=k.split('-');return ly===y&&parseInt(lmo)>=startM&&parseInt(lmo)<=endM;});sales=sales.filter(s=>{const k=mKey(s.date);if(!k)return false;const[sy,smo]=k.split('-');return sy===y&&parseInt(smo)>=startM&&parseInt(smo)<=endM;});}
+    return{lots,sales};
+  };
+  
+  const{lots:fLots,sales:fSales}=filterData();
+  const fInvested=fLots.reduce((s,l)=>s+(l.cost||0),0);
+  const fRevenue=fSales.reduce((s,x)=>s+(x.amount||0),0);
+  const fPromoCosts=fSales.reduce((s,x)=>s+(x.promoCost||0),0);
+  const fProfit=fRevenue-fInvested-fPromoCosts;
+  const fMargin=fInvested>0?fProfit/fInvested*100:0;
+  
   const monthly=useMemo(()=>{
     const map={};
-    data.sales.forEach(s=>{const k=mKey(s.date);if(!k)return;if(!map[k])map[k]={rev:0,deals:0};map[k].rev+=s.amount||0;map[k].deals++;});
-    const inv={};data.lots.forEach(l=>{const k=mKey(l.date);if(!k)return;if(!inv[k])inv[k]=0;inv[k]+=(l.cost||0);});
-    return Object.keys(map).sort().slice(-6).map(k=>({key:k,rev:map[k].rev,deals:map[k].deals,profit:map[k].rev-(inv[k]||0)}));
-  },[data]);
-  const maxRev=Math.max(...monthly.map(m=>m.rev),1);
+    fSales.forEach(s=>{const k=mKey(s.date);if(!k)return;if(!map[k])map[k]={rev:0,deals:0,promo:0};map[k].rev+=s.amount||0;map[k].deals++;map[k].promo+=s.promoCost||0;});
+    const inv={};fLots.forEach(l=>{const k=mKey(l.date);if(!k)return;if(!inv[k])inv[k]=0;inv[k]+=(l.cost||0);});
+    const keys=Object.keys(map).sort();
+    return(period==='all'?keys.slice(-6):keys).map(k=>({key:k,rev:map[k]?.rev||0,deals:map[k]?.deals||0,profit:(map[k]?.rev||0)-(inv[k]||0)-(map[k]?.promo||0)}));
+  },[fLots,fSales,period]);
+  
+  const maxVal=Math.max(...monthly.map(m=>chartType==='profit'?m.profit:m.rev),1);
   const sc={active:0,partial:0,sold:0,parts:0};
-  data.lots.forEach(l=>sc[computeStatus(l,data.sales)]++);
-  const avgDeal=data.sales.length>0?stats.revenue/data.sales.length:0;
-  const openLots=data.lots.filter(l=>computeStatus(l,data.sales)!=='sold');
+  fLots.forEach(l=>sc[computeStatus(l,fSales)]++);
+  const avgDeal=fSales.length>0?fRevenue/fSales.length:0;
   const byModel=useMemo(()=>{
-    const m={};data.lots.forEach(l=>{const k=l.console||'?';if(!m[k])m[k]={c:0,inv:0,rev:0};m[k].c++;m[k].inv+=l.cost||0;m[k].rev+=lotSalesTotal(data.sales,l.id);});
+    const m={};fLots.forEach(l=>{const k=l.console||'?';if(!m[k])m[k]={c:0,inv:0,rev:0};m[k].c++;m[k].inv+=l.cost||0;m[k].rev+=lotSalesTotal(fSales,l.id);});
     return Object.entries(m).sort((a,b)=>b[1].c-a[1].c);
-  },[data]);
-
+  },[fLots,fSales]);
+  
   return<>
+    <div className="sec-hdr" style={{marginBottom:'14px'}}>
+      <span className="sec-title">📊 Статистика</span>
+      <div className="filter-row" style={{gap:'6px'}}>
+        <select className="sel-sm" value={period} onChange={e=>{setPeriod(e.target.value);setSelectedMonth('');setSelectedQuarter('');}}>
+          <option value="all">За всё время</option>
+          <option value="month">По месяцам</option>
+          <option value="quarter">По кварталам</option>
+        </select>
+        {period==='month'&&<select className="sel-sm" value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)}>
+          <option value="">Выберите месяц</option>
+          {allMonths.map(m=>{const[y,mo]=m.split('-');return<option key={m} value={m}>{MONTHS_FULL[parseInt(mo)-1]} {y}</option>;})}
+        </select>}
+        {period==='quarter'&&<select className="sel-sm" value={selectedQuarter} onChange={e=>setSelectedQuarter(e.target.value)}>
+          <option value="">Выберите квартал</option>
+          {quarters.map(q=><option key={q} value={q}>{q}</option>)}
+        </select>}
+      </div>
+    </div>
+    
     {monthly.length>0&&<div className="month-chart">
-      <div className="month-title">📈 Выручка по месяцам</div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
+        <div className="month-title">📈 {chartType==='profit'?'Прибыль':'Выручка'} по месяцам</div>
+        <div style={{display:'flex',gap:'4px',background:'var(--surf2)',padding:'3px',borderRadius:'8px'}}>
+          <button onClick={()=>setChartType('profit')} style={{padding:'4px 12px',background:chartType==='profit'?'var(--surf3)':'transparent',border:'none',borderRadius:'6px',color:chartType==='profit'?'var(--text)':'var(--t3)',fontSize:'.75rem',fontWeight:600,cursor:'pointer',fontFamily:'var(--sans)'}}>Прибыль</button>
+          <button onClick={()=>setChartType('revenue')} style={{padding:'4px 12px',background:chartType==='revenue'?'var(--surf3)':'transparent',border:'none',borderRadius:'6px',color:chartType==='revenue'?'var(--text)':'var(--t3)',fontSize:'.75rem',fontWeight:600,cursor:'pointer',fontFamily:'var(--sans)'}}>Выручка</button>
+        </div>
+      </div>
       <div className="month-bars">
         {monthly.map(m=>{
-          const h=Math.max(3,m.rev/maxRev*72);
+          const val=chartType==='profit'?m.profit:m.rev;
+          const h=Math.max(3,Math.abs(val)/maxVal*72);
           const[y,mo]=m.key.split('-');
           return<div key={m.key} className="month-col">
-            <div style={{fontSize:'.58rem',color:'var(--t3)',fontFamily:'var(--mono)'}}>{(m.rev/1000).toFixed(0)}K</div>
-            <div className="month-bar" style={{height:h+'px'}}/>
+            <div style={{fontSize:'.68rem',color:val>=0?'var(--accent)':'var(--red)',fontFamily:'var(--mono)',fontWeight:600}}>{(val>=0?'+':'')+((val)/1000).toFixed(0)}K</div>
+            <div className="month-bar" style={{height:h+'px',background:val>=0?'linear-gradient(180deg,var(--accent),var(--a3))':'linear-gradient(180deg,var(--red),var(--a2)'}}/>
             <div className="month-lbl">{MONTHS_RU[parseInt(mo)-1]}</div>
           </div>;
         })}
       </div>
     </div>}
+    
     <div className="stat-grid">
       <div className="stat-blk">
         <div className="stat-blk-title">💰 Финансы</div>
-        {[['Выручка',fmt(stats.revenue),'var(--a3)'],['Вложено',fmt(stats.invested),'var(--a2)'],
-          ['Прибыль',(stats.profit>=0?'+':'')+fmt(stats.profit),stats.profit>=0?'var(--accent)':'var(--red)'],
-          ['Маржа',stats.margin.toFixed(1)+'%',stats.margin>=0?'var(--accent)':'var(--red)'],
-          ['Средний чек',fmt(avgDeal),'var(--text)'],['Сделок',data.sales.length,'var(--a3)'],
+        {[['Выручка',fmt(fRevenue),'var(--a3)'],['Вложено',fmt(fInvested),'var(--a2)'],
+          ['Продвижение',fPromoCosts>0?'−'+fmt(fPromoCosts):'—','var(--warn)'],
+          ['Прибыль',(fProfit>=0?'+':'')+fmt(fProfit),fProfit>=0?'var(--accent)':'var(--red)'],
+          ['Маржа',fMargin.toFixed(1)+'%',fMargin>=0?'var(--accent)':'var(--red)'],
+          ['Средний чек',fmt(avgDeal),'var(--text)'],['Сделок',fSales.length,'var(--a3)'],
         ].map(([l,v,c])=><div key={l} className="stat-line"><span className="stat-ln-lbl">{l}</span><span className="stat-ln-val" style={{color:c}}>{v}</span></div>)}
       </div>
       <div className="stat-blk">
         <div className="stat-blk-title">📦 Лоты</div>
-        {[['Всего',data.lots.length,'var(--text)'],['В наличии',sc.active,'var(--t2)'],
+        {[['Всего',fLots.length,'var(--text)'],['В наличии',sc.active,'var(--t2)'],
           ['Частично',sc.partial,'var(--warn)'],['Продано',sc.sold,'var(--accent)'],
-          ['На запчасти',sc.parts,'var(--red)'],['Заморожено',fmt(stats.frozen),'var(--warn)'],
+          ['На запчасти',sc.parts,'var(--red)'],
         ].map(([l,v,c])=><div key={l} className="stat-line"><span className="stat-ln-lbl">{l}</span><span className="stat-ln-val" style={{color:c}}>{v}</span></div>)}
       </div>
     </div>
@@ -830,15 +905,6 @@ function StatsTab({data,stats}){
         <span className="stat-ln-lbl">{model} ({d.c} шт.)</span>
         <span className="stat-ln-val" style={{color:d.rev-d.inv>=0?'var(--accent)':'var(--red)'}}>{(d.rev-d.inv>=0?'+':'')+fmt(d.rev-d.inv)}</span>
       </div>)}
-    </div>}
-    {openLots.length>0&&<div className="stat-blk">
-      <div className="stat-blk-title">⚠️ Незакрытые лоты</div>
-      {openLots.map(lot=>{const sold=lotSalesTotal(data.sales,lot.id);const pct=lot.cost>0?Math.min(100,sold/lot.cost*100):0;
-        return<div key={lot.id} className="open-lot-row">
-          <div className="open-lot-name">{lot.console} {lot.color}</div>
-          <div className="open-lot-remains">−{fmt(Math.max(0,(lot.cost||0)-sold))}</div>
-          <div className="open-bar"><div className="open-fill" style={{width:pct+'%'}}/></div>
-        </div>;})}
     </div>}
   </>;
 }
@@ -881,6 +947,7 @@ function LotModal({data,upd,init,cartDb,close}){
   const[date,setDate]=useState(e?.date||todayStr());
   const[srcType,setSrcType]=useState(e?.sourceType||'Доставка');
   const[srcAddr,setSrcAddr]=useState(e?.sourceAddr||'');
+  const[srcLink,setSrcLink]=useState(e?.sourceLink||'');
   const[cond,setCond]=useState(e?.condition||8);
   const[status,setStatus]=useState(e?.status||'active');
   const[notes,setNotes]=useState(e?.notes||'');
@@ -890,6 +957,24 @@ function LotModal({data,upd,init,cartDb,close}){
   const[cartBox,setCartBox]=useState(false);
   const[accIn,setAccIn]=useState('');
   const[accType,setAccType]=useState('joy');
+  
+  // Дополнительные расходы
+  const[costChip,setCostChip]=useState(e?.costChip||'');
+  const[costSD,setCostSD]=useState(e?.costSD||'');
+  const[costAdapter,setCostAdapter]=useState(e?.costAdapter||'');
+  const[costGlass,setCostGlass]=useState(e?.costGlass||'');
+  const[costCase,setCostCase]=useState(e?.costCase||'');
+  const[costDefect,setCostDefect]=useState(e?.costDefect||'');
+  const[costDelivery,setCostDelivery]=useState(e?.costDelivery||'');
+  const[costOther,setCostOther]=useState(e?.costOther||'');
+  
+  // Калькулятор наценки
+  const[targetPrice,setTargetPrice]=useState('');
+  const[showCalc,setShowCalc]=useState(false);
+  
+  const totalCost=(parseFloat(cost)||0)+(parseFloat(costChip)||0)+(parseFloat(costSD)||0)+(parseFloat(costAdapter)||0)+(parseFloat(costGlass)||0)+(parseFloat(costCase)||0)+(parseFloat(costDefect)||0)+(parseFloat(costDelivery)||0)+(parseFloat(costOther)||0);
+  const markup=targetPrice&&totalCost>0?((parseFloat(targetPrice)-totalCost)/totalCost*100):0;
+  const profit=targetPrice?parseFloat(targetPrice)-totalCost:0;
 
   const colors=COLORS[cn]||[];
   useEffect(()=>{if(!e){setColor(colors[0]||'');}else{setColor(e.color||colors[0]||'');}},[cn]);
@@ -900,10 +985,11 @@ function LotModal({data,upd,init,cartDb,close}){
   const save=()=>{
     if(!cn.trim())return;
     const fc=color==='Другой'?colorCustom:color;
+    const lotData={console:cn,color:fc,cost:totalCost,baseCost:parseFloat(cost)||0,costChip:parseFloat(costChip)||0,costSD:parseFloat(costSD)||0,costAdapter:parseFloat(costAdapter)||0,costGlass:parseFloat(costGlass)||0,costCase:parseFloat(costCase)||0,costDefect:parseFloat(costDefect)||0,costDelivery:parseFloat(costDelivery)||0,costOther:parseFloat(costOther)||0,date,sourceType:srcType,sourceAddr:srcAddr,sourceLink:srcLink,condition:parseInt(cond)||8,status,notes,cartridges:carts,accessories:accs};
     if(e){
-      upd(d=>{const l=d.lots.find(x=>x.id===e.id);if(l)Object.assign(l,{console:cn,color:fc,cost:parseFloat(cost)||0,date,sourceType:srcType,sourceAddr:srcAddr,condition:parseInt(cond)||8,status,notes,cartridges:carts,accessories:accs});return d;});
+      upd(d=>{const l=d.lots.find(x=>x.id===e.id);if(l)Object.assign(l,lotData);return d;});
     }else{
-      upd(d=>{d.lots.push({id:uid(),console:cn,color:fc,cost:parseFloat(cost)||0,date,sourceType:srcType,sourceAddr:srcAddr,condition:parseInt(cond)||8,status,notes,cartridges:carts,accessories:accs,createdAt:new Date().toISOString()});return d;});
+      upd(d=>{d.lots.push({id:uid(),...lotData,createdAt:new Date().toISOString()});return d;});
     }
     close();
   };
@@ -911,7 +997,7 @@ function LotModal({data,upd,init,cartDb,close}){
   const selStyle={background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'7px',padding:'6px 24px 6px 8px',color:'var(--text)',fontFamily:'var(--sans)',fontSize:'.78rem',outline:'none',WebkitAppearance:'none',backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238892b0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")",backgroundRepeat:'no-repeat',backgroundPosition:'right 7px center',flex:1};
 
   return<div className="ov" onClick={ev=>{if(ev.target.className==='ov')close();}}>
-    <div className="modal">
+    <div className="modal" style={{maxWidth:'680px'}}>
       <div className="modal-hdr"><div className="modal-title">{e?'Редактировать лот':'Новый лот'}</div><button className="modal-x" onClick={close}>✕</button></div>
       <div className="modal-body">
         <div className="fr-2">
@@ -921,16 +1007,94 @@ function LotModal({data,upd,init,cartDb,close}){
             <select value={color} onChange={ev=>setColor(ev.target.value)}>{colors.map(c=><option key={c}>{c}</option>)}</select></div>
         </div>
         {color==='Другой'&&<div className="fr"><label>Свой цвет</label><input value={colorCustom} onChange={ev=>setColorCustom(ev.target.value)} placeholder="Введите цвет"/></div>}
+        
         <div className="fr-3">
           <div className="fr"><label>Закупка ₽</label><input type="number" value={cost} onChange={ev=>setCost(ev.target.value)} placeholder="15000"/></div>
           <div className="fr"><label>Дата покупки</label><input type="date" value={date} onChange={ev=>setDate(ev.target.value)}/></div>
           <div className="fr"><label>Состояние /10</label><input type="number" min="1" max="10" value={cond} onChange={ev=>setCond(ev.target.value)}/></div>
         </div>
+        
+        {/* ДОПОЛНИТЕЛЬНЫЕ РАСХОДЫ */}
+        <div className="fr" style={{marginBottom:'14px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+            <label style={{marginBottom:0}}>💸 Дополнительные расходы</label>
+            <div style={{fontSize:'.85rem',color:'var(--accent)',fontFamily:'var(--mono)',fontWeight:600}}>Итого: {fmt(totalCost)}</div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'8px',background:'var(--surf2)',padding:'12px',borderRadius:'10px'}}>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+              <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Чип</span>
+              <input type="number" value={costChip} onChange={ev=>setCostChip(ev.target.value)} placeholder="0" style={{padding:'6px 10px',background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'6px',color:'var(--text)',fontSize:'.85rem'}}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+              <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>MicroSD</span>
+              <input type="number" value={costSD} onChange={ev=>setCostSD(ev.target.value)} placeholder="0" style={{padding:'6px 10px',background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'6px',color:'var(--text)',fontSize:'.85rem'}}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+              <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Переходники ЗУ</span>
+              <input type="number" value={costAdapter} onChange={ev=>setCostAdapter(ev.target.value)} placeholder="0" style={{padding:'6px 10px',background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'6px',color:'var(--text)',fontSize:'.85rem'}}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+              <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Стекло</span>
+              <input type="number" value={costGlass} onChange={ev=>setCostGlass(ev.target.value)} placeholder="0" style={{padding:'6px 10px',background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'6px',color:'var(--text)',fontSize:'.85rem'}}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+              <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Чехол</span>
+              <input type="number" value={costCase} onChange={ev=>setCostCase(ev.target.value)} placeholder="0" style={{padding:'6px 10px',background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'6px',color:'var(--text)',fontSize:'.85rem'}}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+              <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Брак</span>
+              <input type="number" value={costDefect} onChange={ev=>setCostDefect(ev.target.value)} placeholder="0" style={{padding:'6px 10px',background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'6px',color:'var(--text)',fontSize:'.85rem'}}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+              <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Доставка</span>
+              <input type="number" value={costDelivery} onChange={ev=>setCostDelivery(ev.target.value)} placeholder="0" style={{padding:'6px 10px',background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'6px',color:'var(--text)',fontSize:'.85rem'}}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+              <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Прочее</span>
+              <input type="number" value={costOther} onChange={ev=>setCostOther(ev.target.value)} placeholder="0" style={{padding:'6px 10px',background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'6px',color:'var(--text)',fontSize:'.85rem'}}/>
+            </div>
+          </div>
+        </div>
+        
+        {/* КАЛЬКУЛЯТОР НАЦЕНКИ */}
+        {totalCost>0&&<div className="fr" style={{marginBottom:'14px'}}>
+          <button onClick={()=>setShowCalc(!showCalc)} style={{background:'var(--surf2)',border:'1px solid var(--border)',padding:'8px 14px',borderRadius:'8px',color:'var(--text)',fontWeight:600,fontSize:'.85rem',cursor:'pointer',display:'flex',alignItems:'center',gap:'8px',width:'100%',justifyContent:'space-between'}}>
+            <span>🧮 Калькулятор наценки</span>
+            <span style={{fontSize:'.75rem',color:'var(--t3)'}}>{showCalc?'▲':'▼'}</span>
+          </button>
+          {showCalc&&<div style={{background:'var(--surf2)',padding:'12px',borderRadius:'8px',marginTop:'8px'}}>
+            <div style={{display:'flex',gap:'12px',alignItems:'flex-end',marginBottom:'10px'}}>
+              <div style={{flex:1}}>
+                <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600,display:'block',marginBottom:'5px'}}>Желаемая цена продажи ₽</span>
+                <input type="number" value={targetPrice} onChange={ev=>setTargetPrice(ev.target.value)} placeholder="20000" style={{padding:'8px 12px',background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'6px',color:'var(--text)',fontSize:'.9rem',width:'100%'}}/>
+              </div>
+            </div>
+            {targetPrice&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'10px'}}>
+              <div style={{background:'var(--surf3)',padding:'10px',borderRadius:'8px'}}>
+                <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'4px'}}>ПРИБЫЛЬ</div>
+                <div style={{fontFamily:'var(--mono)',fontSize:'1.1rem',fontWeight:700,color:profit>=0?'var(--accent)':'var(--red)'}}>{profit>=0?'+':''}{fmt(profit)}</div>
+              </div>
+              <div style={{background:'var(--surf3)',padding:'10px',borderRadius:'8px'}}>
+                <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'4px'}}>НАЦЕНКА</div>
+                <div style={{fontFamily:'var(--mono)',fontSize:'1.1rem',fontWeight:700,color:markup>=0?'var(--accent)':'var(--red)'}}>{markup>=0?'+':''}{markup.toFixed(1)}%</div>
+              </div>
+              <div style={{background:'var(--surf3)',padding:'10px',borderRadius:'8px'}}>
+                <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'4px'}}>ЗАТРАТЫ</div>
+                <div style={{fontFamily:'var(--mono)',fontSize:'1.1rem',fontWeight:700,color:'var(--a2)'}}>{fmt(totalCost)}</div>
+              </div>
+            </div>}
+          </div>}
+        </div>}
+        
         <div className="fr-2">
           <div className="fr"><label>Откуда куплено</label>
             <select value={srcType} onChange={ev=>setSrcType(ev.target.value)}>{SOURCES.map(s=><option key={s}>{s}</option>)}</select></div>
           {srcType==='Самовывоз'&&<div className="fr"><label>Адрес (необязательно)</label><input value={srcAddr} onChange={ev=>setSrcAddr(ev.target.value)} placeholder="ул. Ленина 15"/></div>}
         </div>
+        
+        <div className="fr"><label>Ссылка на объявление продавца (Авито)</label>
+          <input value={srcLink} onChange={ev=>setSrcLink(ev.target.value)} placeholder="https://avito.ru/..."/></div>
+        
         <div className="fr"><label>Статус</label>
           <select value={status} onChange={ev=>setStatus(ev.target.value)}>
             <option value="active">В наличии</option><option value="partial">Частично продан</option>
@@ -996,31 +1160,29 @@ function LotModal({data,upd,init,cartDb,close}){
 
 function SaleModal({data,upd,init,close}){
   const lot=data.lots.find(l=>l.id===init.lotId);
-  const[item,setItem]=useState('');
   const[amount,setAmount]=useState('');
   const[date,setDate]=useState(todayStr());
   const[platform,setPlatform]=useState('');
   const[pay,setPay]=useState('Перевод');
   const[method,setMethod]=useState('Доставка');
   const[note,setNote]=useState('');
-  const sugg=[lot?.console&&`${lot.console} консоль`,...(lot?.cartridges||[]).map(c=>c.name),...(lot?.accessories||[]).map(a=>a.name)].filter(Boolean);
+  const[promoCost,setPromoCost]=useState(''); // Затраты на продвижение
+  const[saleLink,setSaleLink]=useState(''); // Ссылка на объявление
+  
   const save=()=>{
-    if(!item.trim()||!amount)return;
-    upd(d=>{d.sales.push({id:uid(),lotId:init.lotId,item:item.trim(),amount:parseFloat(amount),date,platform,pay,method,note,createdAt:new Date().toISOString()});return d;});
+    if(!amount)return;
+    const itemName=`${lot.console} консоль`;
+    upd(d=>{d.sales.push({id:uid(),lotId:init.lotId,item:itemName,amount:parseFloat(amount),date,platform,pay,method,note,promoCost:parseFloat(promoCost)||0,saleLink,createdAt:new Date().toISOString()});return d;});
     close();
   };
   return<div className="ov" onClick={ev=>{if(ev.target.className==='ov')close();}}>
     <div className="modal">
       <div className="modal-hdr"><div className="modal-title">Добавить продажу</div><button className="modal-x" onClick={close}>✕</button></div>
       <div className="modal-body">
-        {lot&&<div style={{padding:'7px 12px',background:'var(--surf2)',borderRadius:'8px',marginBottom:'14px',fontSize:'.8rem',color:'var(--t2)'}}>
-          Лот: <strong style={{color:'var(--text)'}}>{lot.console} {lot.color}</strong></div>}
-        <div className="fr"><label>Что продано</label>
-          <input list="sale-sugg" value={item} onChange={ev=>setItem(ev.target.value)} placeholder="Выбери или напиши"/>
-          <datalist id="sale-sugg">{sugg.map(s=><option key={s} value={s}/>)}</datalist>
-          {sugg.length>0&&<div className="fr-hint">Из лота: {sugg.join(', ')}</div>}</div>
+        {lot&&<div style={{padding:'9px 14px',background:'var(--surf2)',borderRadius:'8px',marginBottom:'14px',fontSize:'.88rem',color:'var(--t2)'}}>
+          Продаётся: <strong style={{color:'var(--text)',fontSize:'.95rem'}}>{lot.console} {lot.color}</strong></div>}
         <div className="fr-2">
-          <div className="fr"><label>Сумма ₽</label><input type="number" value={amount} onChange={ev=>setAmount(ev.target.value)} placeholder="14000"/></div>
+          <div className="fr"><label>Сумма продажи ₽</label><input type="number" value={amount} onChange={ev=>setAmount(ev.target.value)} placeholder="18000"/></div>
           <div className="fr"><label>Дата</label><input type="date" value={date} onChange={ev=>setDate(ev.target.value)}/></div>
         </div>
         <div className="fr-3">
@@ -1029,6 +1191,10 @@ function SaleModal({data,upd,init,close}){
             <select value={method} onChange={ev=>setMethod(ev.target.value)}>{SALE_METHODS.map(m=><option key={m}>{m}</option>)}</select></div>
           <div className="fr"><label>Оплата</label>
             <select value={pay} onChange={ev=>setPay(ev.target.value)}>{PAYMENT.map(p=><option key={p}>{p}</option>)}</select></div>
+        </div>
+        <div className="fr-2">
+          <div className="fr"><label>Затраты на продвижение ₽</label><input type="number" value={promoCost} onChange={ev=>setPromoCost(ev.target.value)} placeholder="Просмотры Авито..."/></div>
+          <div className="fr"><label>Ссылка на объявление</label><input value={saleLink} onChange={ev=>setSaleLink(ev.target.value)} placeholder="https://avito.ru/..."/></div>
         </div>
         <div className="fr" style={{marginBottom:0}}><label>Комментарий</label>
           <textarea value={note} onChange={ev=>setNote(ev.target.value)} placeholder="Необязательно"/></div>
