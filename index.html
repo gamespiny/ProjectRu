@@ -827,8 +827,19 @@ function StatsTab({data,stats}){
   
   const filterData=()=>{
     let lots=data.lots;let sales=data.sales;
-    if(period==='month'&&selectedMonth){lots=lots.filter(l=>mKey(l.date)===selectedMonth);sales=sales.filter(s=>mKey(s.date)===selectedMonth);}
-    if(period==='quarter'&&selectedQuarter){const[y,q]=selectedQuarter.split('-Q');const qn=parseInt(q);const startM=(qn-1)*3+1;const endM=qn*3;lots=lots.filter(l=>{const k=mKey(l.date);if(!k)return false;const[ly,lmo]=k.split('-');return ly===y&&parseInt(lmo)>=startM&&parseInt(lmo)<=endM;});sales=sales.filter(s=>{const k=mKey(s.date);if(!k)return false;const[sy,smo]=k.split('-');return sy===y&&parseInt(smo)>=startM&&parseInt(smo)<=endM;});}
+    if(period==='month'&&selectedMonth){
+      sales=sales.filter(s=>mKey(s.date)===selectedMonth);
+      // Для вложений берём только те лоты, которые имеют продажи в этом месяце
+      const lotIdsWithSales=new Set(sales.map(s=>s.lotId));
+      lots=data.lots.filter(l=>lotIdsWithSales.has(l.id));
+    }
+    if(period==='quarter'&&selectedQuarter){
+      const[y,q]=selectedQuarter.split('-Q');const qn=parseInt(q);const startM=(qn-1)*3+1;const endM=qn*3;
+      sales=sales.filter(s=>{const k=mKey(s.date);if(!k)return false;const[sy,smo]=k.split('-');return sy===y&&parseInt(smo)>=startM&&parseInt(smo)<=endM;});
+      // Для вложений берём только те лоты, которые имеют продажи в этом квартале
+      const lotIdsWithSales=new Set(sales.map(s=>s.lotId));
+      lots=data.lots.filter(l=>lotIdsWithSales.has(l.id));
+    }
     return{lots,sales};
   };
   
