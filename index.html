@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ConsoleFlip</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2310b981'/><text x='50' y='70' font-size='60' text-anchor='middle' fill='white'>🎮</text></svg>">
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -640,7 +641,6 @@ function LotCard({lot,data,upd,expanded,toggle,openModal}){
 
   return<div className={`lot-card st-${status}`}>
     <div className="lot-head" onClick={toggle}>
-      <div className="lot-badge">{lot.id.slice(-4).toUpperCase()}</div>
       <div className="lot-info">
         <div className="lot-name">{lot.console} · {lot.color}</div>
         <div className="lot-sub">
@@ -996,7 +996,7 @@ function LotModal({data,upd,init,cartDb,close}){
 
   const selStyle={background:'var(--surf3)',border:'1px solid var(--border)',borderRadius:'7px',padding:'6px 24px 6px 8px',color:'var(--text)',fontFamily:'var(--sans)',fontSize:'.78rem',outline:'none',WebkitAppearance:'none',backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238892b0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")",backgroundRepeat:'no-repeat',backgroundPosition:'right 7px center',flex:1};
 
-  return<div className="ov" onClick={ev=>{if(ev.target.className==='ov')close();}}>
+  return<div className="ov">
     <div className="modal" style={{maxWidth:'680px'}}>
       <div className="modal-hdr"><div className="modal-title">{e?'Редактировать лот':'Новый лот'}</div><button className="modal-x" onClick={close}>✕</button></div>
       <div className="modal-body">
@@ -1175,7 +1175,7 @@ function SaleModal({data,upd,init,close}){
     upd(d=>{d.sales.push({id:uid(),lotId:init.lotId,item:itemName,amount:parseFloat(amount),date,platform,pay,method,note,promoCost:parseFloat(promoCost)||0,saleLink,createdAt:new Date().toISOString()});return d;});
     close();
   };
-  return<div className="ov" onClick={ev=>{if(ev.target.className==='ov')close();}}>
+  return<div className="ov">
     <div className="modal">
       <div className="modal-hdr"><div className="modal-title">Добавить продажу</div><button className="modal-x" onClick={close}>✕</button></div>
       <div className="modal-body">
@@ -1210,62 +1210,105 @@ function SaleModal({data,upd,init,close}){
 function ViewModal({data,lot,upd,openModal,close}){
   const sales=lotSales(data.sales,lot.id);
   const totalSold=lotSalesTotal(data.sales,lot.id);
-  const profit=totalSold-(lot.cost||0);
+  const totalPromoCost=sales.reduce((s,x)=>s+(x.promoCost||0),0);
+  const profit=totalSold-(lot.cost||0)-totalPromoCost;
   const pct=lot.cost>0?Math.min(100,totalSold/lot.cost*100):0;
   const status=computeStatus(lot,data.sales);
   const sm=STATUS_META[status];
-  return<div className="ov" onClick={ev=>{if(ev.target.className==='ov')close();}}>
-    <div className="modal" style={{maxWidth:'540px'}}>
+  
+  return<div className="ov">
+    <div className="modal" style={{maxWidth:'640px'}}>
       <div className="modal-hdr"><div className="modal-title">{lot.console} · {lot.color}</div><button className="modal-x" onClick={close}>✕</button></div>
       <div className="modal-body">
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'14px'}}>
+        {/* ФИНАНСЫ */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'16px'}}>
           {[['Закупка',fmt(lot.cost),'var(--a2)'],['Продано',fmt(totalSold),'var(--a3)'],
             ['Прибыль',(profit>=0?'+':'')+fmt(profit),profit>=0?'var(--accent)':'var(--red)'],
             ['Маржа',lot.cost>0?(profit/lot.cost*100).toFixed(1)+'%':'—',profit>=0?'var(--accent)':'var(--red)'],
           ].map(([l,v,c])=><div key={l} style={{background:'var(--surf2)',borderRadius:'8px',padding:'10px 12px'}}>
-            <div style={{fontSize:'.62rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.7px',marginBottom:'4px'}}>{l}</div>
+            <div style={{fontSize:'.65rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.7px',marginBottom:'4px',fontWeight:700}}>{l}</div>
             <div style={{fontFamily:'var(--mono)',fontWeight:700,fontSize:'.95rem',color:c}}>{v}</div>
           </div>)}
         </div>
-        <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'14px'}}>
+        
+        {/* СТАТУСЫ И ТЕГИ */}
+        <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'16px'}}>
           <span className={`pill ${sm.cls}`}>{sm.label}</span>
           {lot.date&&<span className="td">{fmtD(lot.date)}</span>}
           {lot.condition&&<span className="tag tk">Состояние {lot.condition}/10</span>}
           {lot.sourceType&&<span className="tag ts">{lot.sourceType}{lot.sourceAddr?': '+lot.sourceAddr:''}</span>}
         </div>
-        {pct>0&&<div style={{marginBottom:'14px'}}>
+        
+        {/* ПРОГРЕСС ОКУПАЕМОСТИ */}
+        {pct>0&&<div style={{marginBottom:'16px'}}>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}>
-            <span style={{fontSize:'.68rem',fontFamily:'var(--mono)',color:'var(--t3)'}}>Отбито</span>
-            <span style={{fontSize:'.68rem',fontFamily:'var(--mono)',color:pct>=100?'var(--accent)':'var(--warn)',fontWeight:700}}>{pct.toFixed(0)}%</span>
+            <span style={{fontSize:'.72rem',fontFamily:'var(--mono)',color:'var(--t3)',fontWeight:600}}>Отбито</span>
+            <span style={{fontSize:'.72rem',fontFamily:'var(--mono)',color:pct>=100?'var(--accent)':'var(--warn)',fontWeight:700}}>{pct.toFixed(0)}%</span>
           </div>
-          <div className="prog-track" style={{height:'4px'}}><div className={`prog-fill ${pct>=100?'done':''}`} style={{width:pct+'%'}}/></div>
+          <div className="prog-track" style={{height:'5px'}}><div className={`prog-fill ${pct>=100?'done':''}`} style={{width:pct+'%'}}/></div>
         </div>}
+        
+        {/* ДЕТАЛИ ПОКУПКИ */}
+        <div style={{fontSize:'.7rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.8px',color:'var(--t3)',marginBottom:'8px'}}>💸 Детали покупки</div>
+        <div style={{background:'var(--surf2)',borderRadius:'10px',padding:'12px',marginBottom:'16px'}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'10px'}}>
+            {[['Базовая цена',lot.baseCost||lot.cost],['Чип',lot.costChip],['MicroSD',lot.costSD],['Переходники',lot.costAdapter],
+              ['Стекло',lot.costGlass],['Чехол',lot.costCase],['Брак',lot.costDefect],['Доставка',lot.costDelivery],['Прочие',lot.costOther]
+            ].filter(([_,v])=>v>0).map(([l,v])=><div key={l} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--border)'}}>
+              <span style={{fontSize:'.82rem',color:'var(--t2)'}}>{l}</span>
+              <span style={{fontFamily:'var(--mono)',fontSize:'.82rem',color:'var(--text)',fontWeight:600}}>{fmt(v)}</span>
+            </div>)}
+          </div>
+          {lot.sourceLink&&<div style={{marginTop:'10px',padding:'8px 10px',background:'var(--surf3)',borderRadius:'6px'}}>
+            <div style={{fontSize:'.68rem',color:'var(--t3)',marginBottom:'4px',fontWeight:600}}>Ссылка на объявление продавца:</div>
+            <a href={lot.sourceLink} target="_blank" style={{fontSize:'.8rem',color:'var(--a3)',wordBreak:'break-all'}}>{lot.sourceLink}</a>
+          </div>}
+        </div>
+        
+        {/* КАРТРИДЖИ */}
         {(lot.cartridges||[]).length>0&&<>
-          <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.8px',color:'var(--t3)',marginBottom:'8px'}}>Картриджи</div>
-          <div style={{background:'var(--surf2)',borderRadius:'8px',padding:'4px 12px',marginBottom:'14px'}}>
+          <div style={{fontSize:'.7rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.8px',color:'var(--t3)',marginBottom:'8px'}}>📼 Картриджи</div>
+          <div style={{background:'var(--surf2)',borderRadius:'8px',padding:'4px 12px',marginBottom:'16px'}}>
             {lot.cartridges.map(c=>{
               const cs=data.sales.find(s=>s.lotId===lot.id&&s.cartridgeId===c.id);
-              return<div key={c.id} style={{display:'flex',alignItems:'center',padding:'6px 0',borderBottom:'1px solid var(--border)'}}>
-                <span style={{flex:1,fontSize:'.82rem',color:'var(--t2)'}}>📼 {c.name}{c.inBox?' 📦':''}</span>
-                {cs?<span style={{fontFamily:'var(--mono)',fontSize:'.78rem',color:'var(--accent)'}}>+{fmt(cs.amount)}</span>
-                  :<span style={{fontSize:'.65rem',color:'var(--t3)',background:'var(--surf3)',padding:'2px 7px',borderRadius:'4px'}}>не продан</span>}
+              return<div key={c.id} style={{display:'flex',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+                <span style={{flex:1,fontSize:'.85rem',color:'var(--text)',fontWeight:500}}>{c.name}{c.inBox?' 📦':''}</span>
+                {cs?<span style={{fontFamily:'var(--mono)',fontSize:'.82rem',color:'var(--accent)',fontWeight:600}}>+{fmt(cs.amount)}</span>
+                  :<span style={{fontSize:'.7rem',color:'var(--t3)',background:'var(--surf3)',padding:'3px 9px',borderRadius:'5px',fontWeight:600}}>не продан</span>}
               </div>;
             })}
           </div>
         </>}
+        
+        {/* ПРОДАЖИ */}
         {sales.length>0&&<>
-          <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.8px',color:'var(--t3)',marginBottom:'8px'}}>Продажи</div>
-          <div style={{background:'var(--surf2)',borderRadius:'8px',padding:'4px 12px',marginBottom:'14px'}}>
-            {sales.map(s=><div key={s.id} className="sale-row">
-              <div className="sale-info">
-                <div className="sale-item">{s.item}</div>
-                <div className="sale-meta"><span className="sale-date">{fmtD(s.date)}</span>{s.platform&&<span className="sale-plat">{s.platform}</span>}{s.method&&<span className="sale-meth">{s.method}</span>}</div>
+          <div style={{fontSize:'.7rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.8px',color:'var(--t3)',marginBottom:'8px'}}>💰 Продажи ({sales.length})</div>
+          <div style={{background:'var(--surf2)',borderRadius:'10px',padding:'8px 12px',marginBottom:'16px'}}>
+            {sales.map(s=><div key={s.id} style={{padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}}>
+                <div style={{fontSize:'.88rem',color:'var(--text)',fontWeight:600}}>{s.item}</div>
+                <div style={{fontFamily:'var(--mono)',fontSize:'.95rem',color:'var(--accent)',fontWeight:700}}>+{fmt(s.amount)}</div>
               </div>
-              <span className="sale-amt">{fmt(s.amount)}</span>
+              <div style={{display:'flex',flexWrap:'wrap',gap:'6px',fontSize:'.75rem',color:'var(--t2)'}}>
+                <span>📅 {fmtD(s.date)}</span>
+                {s.platform&&<span>• {s.platform}</span>}
+                {s.method&&<span>• {s.method}</span>}
+                {s.pay&&<span>• {s.pay}</span>}
+                {s.promoCost>0&&<span style={{color:'var(--warn)'}}>• Продвижение: −{fmt(s.promoCost)}</span>}
+              </div>
+              {s.saleLink&&<div style={{marginTop:'6px',padding:'6px 8px',background:'var(--surf3)',borderRadius:'5px'}}>
+                <a href={s.saleLink} target="_blank" style={{fontSize:'.75rem',color:'var(--a3)',wordBreak:'break-all'}}>🔗 {s.saleLink}</a>
+              </div>}
+              {s.note&&<div style={{marginTop:'6px',fontSize:'.78rem',color:'var(--t3)',fontStyle:'italic'}}>💬 {s.note}</div>}
             </div>)}
           </div>
         </>}
-        {lot.notes&&<div style={{fontSize:'.8rem',color:'var(--t2)',lineHeight:'1.55',fontStyle:'italic'}}>{lot.notes}</div>}
+        
+        {/* ЗАМЕТКИ */}
+        {lot.notes&&<div style={{background:'var(--surf2)',padding:'12px',borderRadius:'8px',fontSize:'.85rem',color:'var(--t2)',lineHeight:'1.6',fontStyle:'italic'}}>
+          <div style={{fontSize:'.68rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.7px',marginBottom:'6px',fontWeight:700}}>📝 Заметки</div>
+          {lot.notes}
+        </div>}
       </div>
       <div className="modal-footer">
         <button className="btn btn-g" onClick={close}>Закрыть</button>
@@ -1278,7 +1321,7 @@ function ViewModal({data,lot,upd,openModal,close}){
 
 function DelModal({upd,init,close}){
   const confirm=()=>{upd(d=>{d.lots=d.lots.filter(l=>l.id!==init.lotId);d.sales=d.sales.filter(s=>s.lotId!==init.lotId);return d;});close();};
-  return<div className="ov" onClick={ev=>{if(ev.target.className==='ov')close();}}>
+  return<div className="ov">
     <div className="modal" style={{maxWidth:'360px'}}>
       <div className="modal-hdr"><div className="modal-title">Удалить лот?</div><button className="modal-x" onClick={close}>✕</button></div>
       <div className="modal-body"><p style={{color:'var(--t2)',fontSize:'.88rem',lineHeight:'1.55'}}><strong style={{color:'var(--text)'}}>{init.name}</strong> и все продажи будут удалены навсегда.</p></div>
