@@ -1,32 +1,4 @@
 <!DOCTYPE html>
-<!--
-╔══════════════════════════════════════════════════════════════════╗
-║  ConsoleFlip — НАСТРОЙКА GOOGLE DRIVE СИНХРОНИЗАЦИИ             ║
-╠══════════════════════════════════════════════════════════════════╣
-║                                                                  ║
-║  БЕЗ НАСТРОЙКИ: работает локально (localStorage), без синхрона  ║
-║                                                                  ║
-║  ДЛЯ СИНХРОНИЗАЦИИ — получи ключи бесплатно:                    ║
-║                                                                  ║
-║  1. Зайди на https://console.cloud.google.com                   ║
-║  2. Создай новый проект (или выбери существующий)               ║
-║  3. APIs & Services → Enable APIs → включи "Google Drive API"   ║
-║  4. APIs & Services → Credentials → Create credentials:         ║
-║     a) "OAuth 2.0 Client ID" → Web application                  ║
-║        Authorised JS origins: добавь адрес где будет файл       ║
-║        (например: http://localhost для локального запуска)       ║
-║        Скопируй CLIENT_ID                                        ║
-║     b) "API key" → скопируй API_KEY                             ║
-║  5. OAuth consent screen → добавь свой email как Test user      ║
-║  6. Найди в коде ниже строки:                                    ║
-║     CLIENT_ID: '%%GOOGLE_CLIENT_ID%%'                           ║
-║     API_KEY:   '%%GOOGLE_API_KEY%%'                             ║
-║     И замени на свои ключи                                       ║
-║                                                                  ║
-║  После этого: открой файл → нажми "Войти через Google" →        ║
-║  данные синхронизируются между всеми устройствами автоматически  ║
-╚══════════════════════════════════════════════════════════════════╝
--->
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -246,17 +218,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:h
 <body>
 <div id="root"></div>
 <script type="text/babel">
-// ═══════════════════════════════════════════════════════════════
-// ЗАЩИТА ДОСТУПА
-// ═══════════════════════════════════════════════════════════════
-const PASSWORD = '14129300231AbK3';
-const enteredPassword = prompt('Введи пароль для доступа:');
-if (enteredPassword !== PASSWORD) {
-  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#ff4f6e;font-family:monospace;font-size:1.2rem;">❌ Доступ запрещён</div>';
-  throw new Error('Unauthorized');
-}
-
 const {useState,useEffect,useMemo,useCallback}=React;
+
 
 const CONSOLES=['Nintendo Switch OLED','Nintendo Switch Lite','Nintendo Switch Rev2'];
 const COLORS={
@@ -494,6 +457,56 @@ function App(){
   const lotMonths=useMemo(()=>[...new Set(data.lots.map(l=>mKey(l.date)).filter(Boolean))].sort().reverse(),[data.lots]);
   const saleMonths=useMemo(()=>[...new Set(data.sales.map(s=>mKey(s.date)).filter(Boolean))].sort().reverse(),[data.sales]);
   const cartDb=useMemo(()=>{const n=new Set(data.cartridgeDb||[]);data.lots.forEach(l=>(l.cartridges||[]).forEach(c=>n.add(c.name)));return[...n].sort();},[data]);
+
+  // Если не авторизован - показываем только экран входа
+  if (USE_GD && gdStatus === 'need_auth') {
+    return <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      background: 'var(--bg)',
+      padding: '20px'
+    }}>
+      <div style={{
+        background: 'var(--surf)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--r2)',
+        padding: '40px',
+        maxWidth: '400px',
+        textAlign: 'center'
+      }}>
+        <div style={{fontSize: '3rem', marginBottom: '20px'}}>🎮</div>
+        <div style={{
+          fontFamily: 'var(--mono)',
+          fontSize: '1.5rem',
+          fontWeight: 700,
+          marginBottom: '10px',
+          color: 'var(--text)'
+        }}>Console<span style={{color: 'var(--accent)'}}>Flip</span></div>
+        <div style={{
+          fontSize: '.9rem',
+          color: 'var(--t2)',
+          marginBottom: '30px',
+          lineHeight: '1.5'
+        }}>Трекер покупок и продаж игровых приставок</div>
+        {gdStatus === 'syncing' ? (
+          <div style={{fontSize: '.85rem', color: 'var(--t3)'}}>
+            <span style={{display: 'inline-block', animation: 'spin .8s linear infinite'}}>⟳</span> Загрузка...
+          </div>
+        ) : (
+          <button 
+            className="btn btn-a" 
+            onClick={gdSignIn}
+            style={{width: '100%', padding: '12px'}}
+          >
+            ☁️ Войти через Google
+          </button>
+        )}
+      </div>
+    </div>;
+  }
 
   return<div className="app">
     {/* GOOGLE DRIVE AUTH BANNER */}
