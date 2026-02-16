@@ -226,11 +226,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:h
 const {useState,useEffect,useMemo,useCallback}=React;
 
 
-const CONSOLES=['Nintendo Switch OLED','Nintendo Switch Lite','Nintendo Switch Rev2'];
+const CONSOLES=['Nintendo Switch OLED','Nintendo Switch Lite','Nintendo Switch Rev2','Другая консоль'];
 const COLORS={
   'Nintendo Switch OLED':['Белый','Неон','Zelda Edition','Mario Edition','Pokemon Edition','Другой'],
   'Nintendo Switch Lite':['Бирюзовый','Синий','Жёлтый','Серый','Коралловый','Другой'],
   'Nintendo Switch Rev2':['Неон','Серый','Fortnite Edition','Diablo Edition','Mario Edition'],
+  'Другая консоль':['Другой'],
 };
 const SOURCES=['Доставка','Ломбард','Самовывоз'];
 const SALE_METHODS=['Самовывоз','Доставка'];
@@ -251,6 +252,7 @@ const fmtS=n=>(n==null||isNaN(n))?'—':new Intl.NumberFormat('ru-RU').format(Ma
 const fmtD=d=>{if(!d)return'';const dt=new Date(d);return dt.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'});};
 const todayStr=()=>new Date().toISOString().slice(0,10);
 const mKey=d=>d?d.slice(0,7):'';
+const daysOnHand=(purchaseDate)=>{if(!purchaseDate)return 0;const now=new Date();const then=new Date(purchaseDate);return Math.floor((now-then)/(1000*60*60*24));};
 const lotSales=(sales,lotId)=>sales.filter(s=>s.lotId===lotId);
 const lotSalesTotal=(sales,lotId)=>lotSales(sales,lotId).reduce((s,x)=>s+(x.amount||0),0);
 const computeStatus=(lot,sales)=>{
@@ -559,6 +561,52 @@ function App(){
         <div className="sc-sub">{sub}</div>
       </div>)}
     </div>
+    
+    {/* УМНЫЕ ПОДСКАЗКИ */}
+    {data.lots.length>0&&(() => {
+      const insights=[];
+      const openLots=data.lots.filter(l=>computeStatus(l,data.sales)!=='sold');
+      
+      // Подсказка про замороженный капитал
+      if(stats.frozen>5000){
+        insights.push({icon:'💰',text:`Заморожено ${fmtS(stats.frozen)} в ${stats.openCount} непроданных ${stats.openCount===1?'лоте':stats.openCount<5?'лотах':'лотах'}`,type:'warn'});
+      }
+      
+      // Подсказка про залежавшиеся лоты
+      const oldLots=openLots.filter(l=>daysOnHand(l.date)>14);
+      if(oldLots.length>0){
+        const oldest=oldLots.sort((a,b)=>daysOnHand(b.date)-daysOnHand(a.date))[0];
+        const days=daysOnHand(oldest.date);
+        insights.push({icon:'⏱',text:`${oldest.console} ${oldest.color} лежит ${days} ${days<5?'дня':'дней'}. Может снизить цену или поднять объявление?`,type:'warn'});
+      }
+      
+      // Подсказка про средний срок продажи
+      const soldLots=data.lots.filter(l=>computeStatus(l,data.sales)==='sold');
+      if(soldLots.length>=3){
+        const avgDays=soldLots.reduce((sum,l)=>{
+          const firstSale=data.sales.find(s=>s.lotId===l.id&&s.item.toLowerCase().includes('консоль'));
+          if(firstSale){
+            const daysDiff=Math.floor((new Date(firstSale.date)-new Date(l.date))/(1000*60*60*24));
+            return sum+daysDiff;
+          }
+          return sum;
+        },0)/soldLots.length;
+        if(avgDays>0){
+          insights.push({icon:'📊',text:`Средний срок продажи: ${Math.round(avgDays)} ${avgDays<5?'дня':'дней'}`,type:'info'});
+        }
+      }
+      
+      if(insights.length===0)return null;
+      
+      return<div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:'var(--r2)',padding:'12px 16px',marginBottom:'18px'}}>
+        <div style={{fontSize:'.7rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.8px',color:'var(--t3)',marginBottom:'10px'}}>💡 Подсказки</div>
+        {insights.map((ins,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:'10px',padding:'8px 0',borderBottom:i<insights.length-1?'1px solid var(--border)':'none'}}>
+          <span style={{fontSize:'1.2rem'}}>{ins.icon}</span>
+          <span style={{fontSize:'.85rem',color:ins.type==='warn'?'var(--warn)':'var(--t2)',lineHeight:'1.5'}}>{ins.text}</span>
+        </div>)}
+      </div>;
+    })()}
+    
     <div className="tabs">
       {[['lots','Лоты'],['sales','История'],['stats','Статистика'],['accs','Аксессуары']].map(([k,l])=>(
         <button key={k} className={`tab ${tab===k?'on':''}`} onClick={()=>setTab(k)}>{l}</button>
@@ -639,6 +687,9 @@ function LotCard({lot,data,upd,expanded,toggle,openModal}){
 
   const rmSale=id=>upd(d=>{d.sales=d.sales.filter(s=>s.id!==id);return d;});
   const rmAcc=id=>upd(d=>{const l=d.lots.find(x=>x.id===lot.id);if(l)l.accessories=l.accessories.filter(a=>a.id!==id);return d;});
+  
+  const days=daysOnHand(lot.date);
+  const daysColor=status==='sold'?'var(--accent)':days<=7?'var(--accent)':days<=14?'var(--warn)':'var(--red)';
 
   return<div className={`lot-card st-${status}`}>
     <div className="lot-head" onClick={toggle}>
@@ -646,10 +697,12 @@ function LotCard({lot,data,upd,expanded,toggle,openModal}){
         <div className="lot-name">{lot.console} · {lot.color}</div>
         <div className="lot-sub">
           {lot.date&&<span className="td">{fmtD(lot.date)}</span>}
+          {status!=='sold'&&<span className="tag" style={{background:`${daysColor}15`,color:daysColor,fontWeight:700}}>⏱ {days} {days===1?'день':days<5?'дня':'дней'}</span>}
           {lot.condition&&<span className="tag tk">{lot.condition}/10</span>}
           {lot.sourceType&&<span className="tag ts">{lot.sourceType}</span>}
           {(lot.cartridges||[]).length>0&&<span className="tag ta">{lot.cartridges.length} карт.</span>}
           {(lot.accessories||[]).length>0&&<span className="tag ta">{lot.accessories.length} акс.</span>}
+          {lot.targetPrice>0&&sold<lot.targetPrice&&status!=='sold'&&<span className="tag" style={{background:'rgba(79,184,255,.12)',color:'var(--a3)'}}>🎯 {fmt(lot.targetPrice-sold)}</span>}
         </div>
       </div>
       <div className="lot-right">
@@ -950,6 +1003,39 @@ function StatsTab({data,stats}){
         <span className="stat-ln-val" style={{color:d.rev-d.inv>=0?'var(--accent)':'var(--red)'}}>{(d.rev-d.inv>=0?'+':'')+fmt(d.rev-d.inv)}</span>
       </div>)}
     </div>}
+    
+    {/* СРЕДНИЙ СРОК ПРОДАЖИ ПО МОДЕЛЯМ */}
+    {(()=>{
+      const soldLots=data.lots.filter(l=>computeStatus(l,fSales)==='sold');
+      if(soldLots.length<2)return null;
+      
+      const modelStats={};
+      soldLots.forEach(l=>{
+        const firstSale=data.sales.find(s=>s.lotId===l.id&&s.item.toLowerCase().includes('консоль'));
+        if(!firstSale)return;
+        const days=Math.floor((new Date(firstSale.date)-new Date(l.date))/(1000*60*60*24));
+        if(days<0)return;
+        
+        const model=l.console;
+        if(!modelStats[model])modelStats[model]={count:0,totalDays:0};
+        modelStats[model].count++;
+        modelStats[model].totalDays+=days;
+      });
+      
+      const models=Object.entries(modelStats)
+        .map(([name,data])=>({name,avgDays:Math.round(data.totalDays/data.count),count:data.count}))
+        .sort((a,b)=>a.avgDays-b.avgDays);
+      
+      if(models.length===0)return null;
+      
+      return<div className="stat-blk" style={{marginBottom:'14px'}}>
+        <div className="stat-blk-title">⏱ Средний срок продажи</div>
+        {models.map(m=><div key={m.name} className="stat-line">
+          <span className="stat-ln-lbl">{m.name} ({m.count} шт.)</span>
+          <span className="stat-ln-val" style={{color:m.avgDays<=7?'var(--accent)':m.avgDays<=14?'var(--warn)':'var(--red)'}}>{m.avgDays} {m.avgDays<5?'дня':'дней'}</span>
+        </div>)}
+      </div>;
+    })()}
   </>;
 }
 
@@ -985,6 +1071,7 @@ function AccsTab({data}){
 function LotModal({data,upd,init,cartDb,close}){
   const e=init.edit||null;
   const[cn,setCn]=useState(e?.console||CONSOLES[0]);
+  const[cnCustom,setCnCustom]=useState('');
   const[color,setColor]=useState(e?.color||'');
   const[colorCustom,setColorCustom]=useState('');
   const[cost,setCost]=useState(e?.cost||'');
@@ -1012,8 +1099,8 @@ function LotModal({data,upd,init,cartDb,close}){
   const[costDelivery,setCostDelivery]=useState(e?.costDelivery||'');
   const[costOther,setCostOther]=useState(e?.costOther||'');
   
-  // Калькулятор наценки
-  const[targetPrice,setTargetPrice]=useState('');
+  // Калькулятор наценки и целевая цена
+  const[targetPrice,setTargetPrice]=useState(e?.targetPrice||'');
   const[showCalc,setShowCalc]=useState(false);
   
   const totalCost=(parseFloat(cost)||0)+(parseFloat(costChip)||0)+(parseFloat(costSD)||0)+(parseFloat(costAdapter)||0)+(parseFloat(costGlass)||0)+(parseFloat(costCase)||0)+(parseFloat(costDefect)||0)+(parseFloat(costDelivery)||0)+(parseFloat(costOther)||0);
@@ -1027,13 +1114,14 @@ function LotModal({data,upd,init,cartDb,close}){
   const addAcc=()=>{const n=accIn.trim();if(!n)return;setAccs(a=>[...a,{id:uid(),name:n,type:accType}]);setAccIn('');};
 
   const save=()=>{
-    if(!cn.trim())return;
+    const finalCn=cn==='Другая консоль'?cnCustom:cn;
+    if(!finalCn.trim())return;
     const fc=color==='Другой'?colorCustom:color;
-    const lotData={console:cn,color:fc,cost:totalCost,baseCost:parseFloat(cost)||0,costChip:parseFloat(costChip)||0,costSD:parseFloat(costSD)||0,costAdapter:parseFloat(costAdapter)||0,costGlass:parseFloat(costGlass)||0,costCase:parseFloat(costCase)||0,costDefect:parseFloat(costDefect)||0,costDelivery:parseFloat(costDelivery)||0,costOther:parseFloat(costOther)||0,date,sourceType:srcType,sourceAddr:srcAddr,sourceLink:srcLink,condition:parseInt(cond)||8,status,notes,cartridges:carts,accessories:accs};
+    const lotData={console:finalCn,color:fc,cost:totalCost,baseCost:parseFloat(cost)||0,costChip:parseFloat(costChip)||0,costSD:parseFloat(costSD)||0,costAdapter:parseFloat(costAdapter)||0,costGlass:parseFloat(costGlass)||0,costCase:parseFloat(costCase)||0,costDefect:parseFloat(costDefect)||0,costDelivery:parseFloat(costDelivery)||0,costOther:parseFloat(costOther)||0,date,sourceType:srcType,sourceAddr:srcAddr,sourceLink:srcLink,condition:parseInt(cond)||8,status,notes,cartridges:carts,accessories:accs,targetPrice:parseFloat(targetPrice)||0,createdAt:e?.createdAt||new Date().toISOString()};
     if(e){
       upd(d=>{const l=d.lots.find(x=>x.id===e.id);if(l)Object.assign(l,lotData);return d;});
     }else{
-      upd(d=>{d.lots.push({id:uid(),...lotData,createdAt:new Date().toISOString()});return d;});
+      upd(d=>{d.lots.push({id:uid(),...lotData});return d;});
     }
     close();
   };
@@ -1050,6 +1138,7 @@ function LotModal({data,upd,init,cartDb,close}){
           <div className="fr"><label>Цвет</label>
             <select value={color} onChange={ev=>setColor(ev.target.value)}>{colors.map(c=><option key={c}>{c}</option>)}</select></div>
         </div>
+        {cn==='Другая консоль'&&<div className="fr"><label>Название консоли</label><input value={cnCustom} onChange={ev=>setCnCustom(ev.target.value)} placeholder="Steam Deck, PS5, Xbox..."/></div>}
         {color==='Другой'&&<div className="fr"><label>Свой цвет</label><input value={colorCustom} onChange={ev=>setColorCustom(ev.target.value)} placeholder="Введите цвет"/></div>}
         
         <div className="fr-3">
