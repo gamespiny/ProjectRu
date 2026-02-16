@@ -247,7 +247,7 @@ const MONTHS_FULL=['Январь','Февраль','Март','Апрель','М
 
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const fmt=n=>(n==null||isNaN(n))?'—':new Intl.NumberFormat('ru-RU').format(Math.round(n))+' ₽';
-const fmtS=n=>{const a=Math.abs(n);if(a>=1e6)return(n/1e6).toFixed(1)+'M ₽';if(a>=1e3)return(n/1e3).toFixed(1)+'K ₽';return Math.round(n)+' ₽';};
+const fmtS=n=>(n==null||isNaN(n))?'—':new Intl.NumberFormat('ru-RU').format(Math.round(n))+' ₽';
 const fmtD=d=>{if(!d)return'';const dt=new Date(d);return dt.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'});};
 const todayStr=()=>new Date().toISOString().slice(0,10);
 const mKey=d=>d?d.slice(0,7):'';
@@ -630,9 +630,10 @@ function LotCard({lot,data,upd,expanded,toggle,openModal}){
   const[cartSell,setCartSell]=useState(null);
   const status=computeStatus(lot,data.sales);
   const sold=lotSalesTotal(data.sales,lot.id);
-  const profit=sold-(lot.cost||0);
-  const pct=lot.cost>0?Math.min(100,sold/lot.cost*100):0;
   const sales=lotSales(data.sales,lot.id);
+  const promoCosts=sales.reduce((s,x)=>s+(x.promoCost||0),0);
+  const profit=sold-(lot.cost||0)-promoCosts;
+  const pct=lot.cost>0?Math.min(100,sold/lot.cost*100):0;
   const sm=STATUS_META[status];
   const pnlCls=profit>0?'pos':profit<0?'neg':'zero';
 
@@ -652,11 +653,27 @@ function LotCard({lot,data,upd,expanded,toggle,openModal}){
         </div>
       </div>
       <div className="lot-right">
-        <div className="lot-nums">
-          <div className="lot-cost">{fmt(lot.cost)}</div>
-          <div className={`lot-pnl ${pnlCls}`}>{sold>0?(profit>0?'+':'')+fmt(profit):'—'}</div>
+        <div style={{display:'grid',gridTemplateColumns:'auto auto auto auto',gap:'12px',alignItems:'center'}}>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Затраты</div>
+            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a2)'}}>{fmt(lot.cost)}</div>
+          </div>
+          {sold>0&&<>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Выручка</div>
+              <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a3)'}}>{fmt(sold)}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Прибыль</div>
+              <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700}} className={`${pnlCls}`}>{(profit>0?'+':'')+fmt(profit)}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Маржа</div>
+              <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700}} className={`${pnlCls}`}>{lot.cost>0?((profit/lot.cost*100).toFixed(1)+'%'):'—'}</div>
+            </div>
+          </>}
         </div>
-        <div className={`pill ${sm.cls}`}>{sm.label}</div>
+        <div className={`pill ${sm.cls}`} style={{marginLeft:'12px'}}>{sm.label}</div>
         <div className={`chev ${expanded?'open':''}`}>▾</div>
       </div>
     </div>
@@ -873,7 +890,7 @@ function StatsTab({data,stats}){
           const h=Math.max(3,Math.abs(val)/maxVal*72);
           const[y,mo]=m.key.split('-');
           return<div key={m.key} className="month-col">
-            <div style={{fontSize:'.68rem',color:val>=0?'var(--accent)':'var(--red)',fontFamily:'var(--mono)',fontWeight:600}}>{(val>=0?'+':'')+((val)/1000).toFixed(0)}K</div>
+            <div style={{fontSize:'.68rem',color:val>=0?'var(--accent)':'var(--red)',fontFamily:'var(--mono)',fontWeight:600}}>{(val>=0?'+':'')+new Intl.NumberFormat('ru-RU').format(Math.round(val))}</div>
             <div className="month-bar" style={{height:h+'px',background:val>=0?'linear-gradient(180deg,var(--accent),var(--a3))':'linear-gradient(180deg,var(--red),var(--a2)'}}/>
             <div className="month-lbl">{MONTHS_RU[parseInt(mo)-1]}</div>
           </div>;
