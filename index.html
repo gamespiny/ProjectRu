@@ -385,7 +385,7 @@ const makeDemoData=()=>{
 };
 
 function App(){
-  const[data,setData]=useState(()=>{const s=loadState();if(s)return s;const d=makeDemoData();saveState(d);return d;});
+  const[data,setData]=useState(()=>({lots:[],sales:[],accessories:[],cartridgeDb:[]})); // Пустые данные по умолчанию
   const[tab,setTab]=useState('lots');
   const[modal,setModal]=useState(null);
   const[expanded,setExpanded]=useState(new Set());
@@ -404,6 +404,16 @@ function App(){
         if(remoteData){
           setData(remoteData);
           localStorage.setItem(SKEY,JSON.stringify(remoteData));
+        } else {
+          // Если в Google Drive пусто - загружаем из localStorage или демо
+          const localData = loadState();
+          if(localData) {
+            setData(localData);
+          } else {
+            const demoData = makeDemoData();
+            setData(demoData);
+            saveState(demoData);
+          }
         }
         setGdStatus('ok');
         setLastSaved(new Date());
