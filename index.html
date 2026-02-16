@@ -246,6 +246,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:h
 <body>
 <div id="root"></div>
 <script type="text/babel">
+// ═══════════════════════════════════════════════════════════════
+// ЗАЩИТА ДОСТУПА
+// ═══════════════════════════════════════════════════════════════
+const PASSWORD = '14129300231AbK3';
+const enteredPassword = prompt('Введи пароль для доступа:');
+if (enteredPassword !== PASSWORD) {
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#ff4f6e;font-family:monospace;font-size:1.2rem;">❌ Доступ запрещён</div>';
+  throw new Error('Unauthorized');
+}
+
 const {useState,useEffect,useMemo,useCallback}=React;
 
 const CONSOLES=['Nintendo Switch OLED','Nintendo Switch Lite','Nintendo Switch Rev2'];
@@ -283,16 +293,40 @@ const computeStatus=(lot,sales)=>{
   return'sold';
 };
 
-// ── GOOGLE DRIVE STORAGE ──────────────────────────────────────
+// ── GOOGLE DRIVE STORAGE (через Netlify Functions) ──────────────
 const GD = {
-  CLIENT_ID: '%%GOOGLE_CLIENT_ID%%',
-  API_KEY:   '%%GOOGLE_API_KEY%%',
+  CLIENT_ID: null, // Будет загружен с сервера
   SCOPES:    'https://www.googleapis.com/auth/drive.appdata',
   FILE_NAME: 'consolefliip_data.json',
   _fileId:   null,
   _token:    null,
 
+  async _callFunction(action, extraData = {}) {
+    const response = await fetch('/.netlify/functions/google-drive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action,
+        token: this._token,
+        fileId: this._fileId,
+        ...extraData
+      })
+    });
+    if (!response.ok) throw new Error('Function call failed');
+    return await response.json();
+  },
+
   async init(onReady, onNeedAuth) {
+    // Загружаем CLIENT_ID с сервера
+    try {
+      const result = await this._callFunction('get_client_id');
+      this.CLIENT_ID = result.clientId;
+    } catch (e) {
+      console.error('Failed to get CLIENT_ID:', e);
+      onNeedAuth();
+      return;
+    }
+
     // Try restore token from localStorage
     const saved = localStorage.getItem('gd_token');
     if (saved) {
@@ -329,60 +363,35 @@ const GD = {
     localStorage.removeItem('gd_token');
   },
 
-  async _fetch(url, opts={}) {
-    const r = await fetch(url, {
-      ...opts,
-      headers: { 'Authorization': 'Bearer ' + this._token, ...(opts.headers||{}) }
-    });
-    if (!r.ok) throw new Error(await r.text());
-    return r;
-  },
-
   async _findFile() {
     if (this._fileId) return this._fileId;
-    const r = await this._fetch(
-      `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${this.FILE_NAME}'&fields=files(id)`
-    );
-    const j = await r.json();
-    this._fileId = j.files?.[0]?.id || null;
+    const result = await this._callFunction('search');
+    this._fileId = result.files?.[0]?.id || null;
     return this._fileId;
   },
 
   async load() {
     const fid = await this._findFile();
     if (!fid) return null;
-    const r = await this._fetch(
-      `https://www.googleapis.com/drive/v3/files/${fid}?alt=media`
-    );
-    return await r.json();
+    const result = await this._callFunction('get');
+    return result;
   },
 
   async save(data) {
     if (!this._token) return;
-    const body = JSON.stringify(data);
     let fid = await this._findFile();
     if (fid) {
-      await this._fetch(
-        `https://www.googleapis.com/upload/drive/v3/files/${fid}?uploadType=media`,
-        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
-      );
+      await this._callFunction('update', { data });
     } else {
-      const meta = { name: this.FILE_NAME, parents: ['appDataFolder'] };
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify(meta)], {type:'application/json'}));
-      form.append('file', new Blob([body], {type:'application/json'}));
-      const r = await this._fetch(
-        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
-        { method: 'POST', body: form }
-      );
-      const j = await r.json();
-      this._fileId = j.id;
+      const result = await this._callFunction('create');
+      this._fileId = result.id;
+      await this._callFunction('update', { data });
     }
   }
 };
 
 // Fallback to localStorage when no Google credentials configured
-const USE_GD = GD.CLIENT_ID !== '%%GOOGLE_CLIENT_ID%%';
+const USE_GD = true; // Netlify всегда использует Google Drive
 const SKEY='cf_v3';
 const loadState=()=>{try{const r=localStorage.getItem(SKEY);if(r)return JSON.parse(r);}catch(e){}return null;};
 const saveState=s=>{
