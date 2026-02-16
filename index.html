@@ -852,11 +852,27 @@ function StatsTab({data,stats}){
   
   const monthly=useMemo(()=>{
     const map={};
-    fSales.forEach(s=>{const k=mKey(s.date);if(!k)return;if(!map[k])map[k]={rev:0,deals:0,promo:0};map[k].rev+=s.amount||0;map[k].deals++;map[k].promo+=s.promoCost||0;});
-    const inv={};fLots.forEach(l=>{const k=mKey(l.date);if(!k)return;if(!inv[k])inv[k]=0;inv[k]+=(l.cost||0);});
+    // Собираем выручку и продвижение по месяцам продаж
+    fSales.forEach(s=>{
+      const k=mKey(s.date);
+      if(!k)return;
+      if(!map[k])map[k]={rev:0,deals:0,promo:0,invested:0};
+      map[k].rev+=s.amount||0;
+      map[k].deals++;
+      map[k].promo+=s.promoCost||0;
+      // Добавляем затраты лота ТОЛЬКО когда продаётся сама приставка (консоль)
+      const lot=data.lots.find(l=>l.id===s.lotId);
+      if(lot&&lot.cost){
+        // Проверяем, что это продажа консоли (а не картриджа или аксессуара)
+        const isConsoleSale=s.item.toLowerCase().includes('консоль')||s.item===`${lot.console} ${lot.color}`;
+        if(isConsoleSale){
+          map[k].invested+=lot.cost;
+        }
+      }
+    });
     const keys=Object.keys(map).sort();
-    return(period==='all'?keys.slice(-6):keys).map(k=>({key:k,rev:map[k]?.rev||0,deals:map[k]?.deals||0,profit:(map[k]?.rev||0)-(inv[k]||0)-(map[k]?.promo||0)}));
-  },[fLots,fSales,period]);
+    return(period==='all'?keys.slice(-6):keys).map(k=>({key:k,rev:map[k]?.rev||0,deals:map[k]?.deals||0,profit:(map[k]?.rev||0)-(map[k]?.invested||0)-(map[k]?.promo||0)}));
+  },[fLots,fSales,period,data.lots]);
   
   const maxVal=Math.max(...monthly.map(m=>chartType==='profit'?m.profit:m.rev),1);
   const sc={active:0,partial:0,sold:0,parts:0};
