@@ -236,12 +236,20 @@ const COLORS={
 const SOURCES=['Доставка','Ломбард','Самовывоз'];
 const SALE_METHODS=['Самовывоз','Доставка'];
 const PAYMENT=['Перевод','Наличные','Авито Доставка','ЮМани','Другое'];
+const PAYMENT_REPAIR=['Наличные','Карта','Перевод','Другое'];
 const ACC_TYPES={joy:'🕹 Джойкон',charger:'🔌 Зарядка',case:'🎒 Кейс',other:'📦 Другое'};
 const STATUS_META={
   active:{label:'В наличии',cls:'p-active'},
   partial:{label:'Частично',cls:'p-partial'},
   sold:{label:'Продан ✓',cls:'p-sold'},
   parts:{label:'На запчасти',cls:'p-parts'},
+};
+const REPAIR_SERVICES=['Прошивка','Ремонт','Настройка','Чистка','Диагностика','Другое'];
+const REPAIR_STATUS={
+  pending:{label:'Ожидание',cls:'p-partial',icon:'⏳'},
+  in_progress:{label:'В работе',cls:'p-active',icon:'🔧'},
+  completed:{label:'Готово',cls:'p-sold',icon:'✅'},
+  paid:{label:'Оплачено',cls:'p-sold',icon:'💰'},
 };
 const MONTHS_RU=['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
 const MONTHS_FULL=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -392,7 +400,8 @@ const makeDemoData=()=>{
 };
 
 function App(){
-  const[data,setData]=useState(()=>({lots:[],sales:[],accessories:[],cartridgeDb:[]})); // Пустые данные по умолчанию
+  const[data,setData]=useState(()=>({lots:[],sales:[],accessories:[],cartridgeDb:[],repairs:[]})); // Добавлено repairs
+  const[module,setModule]=useState('resale'); // resale | repair
   const[tab,setTab]=useState('lots');
   const[modal,setModal]=useState(null);
   const[expanded,setExpanded]=useState(new Set());
@@ -539,6 +548,11 @@ function App(){
     <div className="hdr">
       <div className="logo"><div className="logo-box">🎮</div><div className="logo-name">Console<span>Flip</span></div></div>
       <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+        {/* Переключатель модулей */}
+        <div style={{display:'flex',gap:'4px',background:'var(--surf2)',padding:'3px',borderRadius:'8px',marginRight:'8px'}}>
+          <button onClick={()=>{setModule('resale');setTab('lots');}} style={{padding:'6px 14px',background:module==='resale'?'var(--surf3)':'transparent',border:'none',borderRadius:'6px',color:module==='resale'?'var(--text)':'var(--t3)',fontSize:'.8rem',fontWeight:600,cursor:'pointer',fontFamily:'var(--sans)'}}>💼 Перепродажа</button>
+          <button onClick={()=>{setModule('repair');setTab('orders');}} style={{padding:'6px 14px',background:module==='repair'?'var(--surf3)':'transparent',border:'none',borderRadius:'6px',color:module==='repair'?'var(--text)':'var(--t3)',fontSize:'.8rem',fontWeight:600,cursor:'pointer',fontFamily:'var(--sans)'}}>🔧 Ремонт</button>
+        </div>
         {USE_GD&&gdStatus==='ok'&&<div style={{display:'flex',alignItems:'center',gap:'5px',fontSize:'.68rem',color:'var(--t3)',cursor:'pointer'}} onClick={gdSignOut} title="Выйти из Google">
           <span style={{width:'6px',height:'6px',borderRadius:'50%',background:'var(--accent)',display:'inline-block'}}/>
           <span>Google Drive</span>
@@ -547,11 +561,12 @@ function App(){
           <span style={{display:'inline-block',animation:'spin .8s linear infinite'}}>⟳</span> сохранение...
         </div>}
         {USE_GD&&gdStatus==='need_auth'&&<button className="btn btn-g btn-sm" onClick={gdSignIn} style={{fontSize:'.72rem',padding:'5px 10px'}}>☁️ Войти</button>}
-        <button className="btn btn-a" onClick={()=>openModal('lot',{})}>+ Лот</button>
+        {module==='resale'&&<button className="btn btn-a" onClick={()=>openModal('lot',{})}>+ Лот</button>}
+        {module==='repair'&&<button className="btn btn-a" onClick={()=>openModal('repair',{})}>+ Заказ</button>}
       </div>
     </div>
     <div className="sbar">
-      {[['g',stats.profit>=0?'g':'r','Прибыль',fmtS(stats.profit),(stats.margin>=0?'+':'')+stats.margin.toFixed(1)+'% маржа'],
+      {module==='resale'&&[['g',stats.profit>=0?'g':'r','Прибыль',fmtS(stats.profit),(stats.margin>=0?'+':'')+stats.margin.toFixed(1)+'% маржа'],
         ['b','b','Выручка',fmtS(stats.revenue),data.sales.length+' сделок'],
         ['w','w','Не закрыто',stats.openCount+'','−'+fmtS(stats.frozen)],
         ['r','r','Вложено',fmtS(stats.invested),data.lots.length+' лотов'],
@@ -560,10 +575,28 @@ function App(){
         <div className={`sc-val ${vc}`}>{val}</div>
         <div className="sc-sub">{sub}</div>
       </div>)}
+      {module==='repair'&&(()=>{
+        const repairs=data.repairs||[];
+        const totalIncome=repairs.reduce((s,r)=>s+(r.income||0),0);
+        const totalExpenses=repairs.reduce((s,r)=>s+(r.expenses||0),0);
+        const totalDeductions=repairs.reduce((s,r)=>s+(r.deductions||0),0);
+        const netProfit=totalIncome-totalExpenses-totalDeductions;
+        const inProgress=repairs.filter(r=>r.status==='in_progress').length;
+        const pending=repairs.filter(r=>r.status==='pending').length;
+        return[['g',netProfit>=0?'g':'r','Прибыль',fmtS(netProfit),totalIncome>0?((netProfit/totalIncome*100).toFixed(1)+'% маржа'):'—'],
+          ['b','b','Доход',fmtS(totalIncome),repairs.length+' заказов'],
+          ['w','w','В работе',inProgress+'',pending?`${pending} ожидает`:'—'],
+          ['r','r','Затраты',fmtS(totalExpenses+totalDeductions),'расходы + отчисления'],
+        ].map(([bc,vc,lbl,val,sub])=><div key={lbl} className={`sc ${bc}`}>
+          <div className="sc-lbl">{lbl}</div>
+          <div className={`sc-val ${vc}`}>{val}</div>
+          <div className="sc-sub">{sub}</div>
+        </div>);
+      })()}
     </div>
     
     {/* УМНЫЕ ПОДСКАЗКИ */}
-    {data.lots.length>0&&(() => {
+    {module==='resale'&&data.lots.length>0&&(() => {
       const insights=[];
       const openLots=data.lots.filter(l=>computeStatus(l,data.sales)!=='sold');
       
@@ -608,19 +641,34 @@ function App(){
     })()}
     
     <div className="tabs">
-      {[['lots','Лоты'],['sales','История'],['stats','Статистика'],['accs','Аксессуары']].map(([k,l])=>(
+      {module==='resale'&&[['lots','Лоты'],['sales','История'],['stats','Статистика'],['accs','Аксессуары']].map(([k,l])=>(
+        <button key={k} className={`tab ${tab===k?'on':''}`} onClick={()=>setTab(k)}>{l}</button>
+      ))}
+      {module==='repair'&&[['orders','Заказы'],['repair-stats','Статистика']].map(([k,l])=>(
         <button key={k} className={`tab ${tab===k?'on':''}`} onClick={()=>setTab(k)}>{l}</button>
       ))}
     </div>
-    {tab==='lots'&&<LotsTab data={data} upd={upd} expanded={expanded} toggleLot={toggleLot}
-      openModal={openModal} fStatus={fStatus} setFStatus={setFStatus}
-      fMonth={fMonth} setFMonth={setFMonth} lotMonths={lotMonths} cartDb={cartDb}/>}
-    {tab==='sales'&&<HistTab data={data} hMonth={hMonth} setHMonth={setHMonth}
-      saleMonths={saleMonths} openModal={openModal}/>}
-    {tab==='stats'&&<StatsTab data={data} stats={stats}/>}
-    {tab==='accs'&&<AccsTab data={data}/>}
+    
+    {/* МОДУЛЬ ПЕРЕПРОДАЖИ */}
+    {module==='resale'&&<>
+      {tab==='lots'&&<LotsTab data={data} upd={upd} expanded={expanded} toggleLot={toggleLot}
+        openModal={openModal} fStatus={fStatus} setFStatus={setFStatus}
+        fMonth={fMonth} setFMonth={setFMonth} lotMonths={lotMonths} cartDb={cartDb}/>}
+      {tab==='sales'&&<HistTab data={data} hMonth={hMonth} setHMonth={setHMonth}
+        saleMonths={saleMonths} openModal={openModal}/>}
+      {tab==='stats'&&<StatsTab data={data} stats={stats}/>}
+      {tab==='accs'&&<AccsTab data={data}/>}
+    </>}
+    
+    {/* МОДУЛЬ РЕМОНТА */}
+    {module==='repair'&&<>
+      {tab==='orders'&&<OrdersTab data={data} upd={upd} openModal={openModal}/>}
+      {tab==='repair-stats'&&<RepairStatsTab data={data}/>}
+    </>}
+    
     {modal?.type==='lot'&&<LotModal data={data} upd={upd} init={modal.d} cartDb={cartDb} close={closeModal}/>}
     {modal?.type==='sale'&&<SaleModal data={data} upd={upd} init={modal.d} close={closeModal}/>}
+    {modal?.type==='repair'&&<RepairModal data={data} upd={upd} init={modal.d} close={closeModal}/>}
     {modal?.type==='del'&&<DelModal upd={upd} init={modal.d} close={closeModal}/>}
     {modal?.type==='view'&&<ViewModal data={data} lot={modal.d.lot} upd={upd} openModal={openModal} close={closeModal}/>}
   </div>;
@@ -1459,6 +1507,237 @@ function DelModal({upd,init,close}){
       <div className="modal-hdr"><div className="modal-title">Удалить лот?</div><button className="modal-x" onClick={close}>✕</button></div>
       <div className="modal-body"><p style={{color:'var(--t2)',fontSize:'.88rem',lineHeight:'1.55'}}><strong style={{color:'var(--text)'}}>{init.name}</strong> и все продажи будут удалены навсегда.</p></div>
       <div className="modal-footer"><button className="btn btn-g" onClick={close}>Отмена</button><button className="btn btn-d" onClick={confirm}>Удалить</button></div>
+    </div>
+  </div>;
+}
+
+// ========================================
+// МОДУЛЬ РЕМОНТА
+// ========================================
+
+function OrdersTab({data,upd,openModal}){
+  const[fStatus,setFStatus]=React.useState('');
+  const[fService,setFService]=React.useState('');
+  const[fMonth,setFMonth]=React.useState('');
+  
+  let orders=[...(data.repairs||[])].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  if(fStatus)orders=orders.filter(o=>o.status===fStatus);
+  if(fService)orders=orders.filter(o=>o.service===fService);
+  if(fMonth)orders=orders.filter(o=>mKey(o.date)===fMonth);
+  
+  const months=useMemo(()=>[...new Set((data.repairs||[]).map(r=>mKey(r.date)).filter(Boolean))].sort().reverse(),[data.repairs]);
+  
+  const completeOrder=id=>upd(d=>{const r=d.repairs.find(x=>x.id===id);if(r)r.status='completed';return d;});
+  const markPaid=id=>upd(d=>{const r=d.repairs.find(x=>x.id===id);if(r)r.status='paid';return d;});
+  
+  return<>
+    <div className="sec-hdr">
+      <span className="sec-title">Заказы</span>
+      <div className="filter-row">
+        <select className="sel-sm" value={fMonth} onChange={e=>setFMonth(e.target.value)}>
+          <option value="">Все месяцы</option>
+          {months.map(m=>{const[y,mo]=m.split('-');return<option key={m} value={m}>{MONTHS_FULL[parseInt(mo)-1]} {y}</option>;})}
+        </select>
+        <select className="sel-sm" value={fService} onChange={e=>setFService(e.target.value)}>
+          <option value="">Все услуги</option>
+          {REPAIR_SERVICES.map(s=><option key={s}>{s}</option>)}
+        </select>
+        <select className="sel-sm" value={fStatus} onChange={e=>setFStatus(e.target.value)}>
+          <option value="">Все статусы</option>
+          {Object.entries(REPAIR_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <span className="sec-cnt">{orders.length}</span>
+      </div>
+    </div>
+    {!orders.length?<div className="empty"><div className="empty-icon">🔧</div><div className="empty-txt">Нет заказов</div></div>
+      :orders.map(order=><OrderCard key={order.id} order={order} upd={upd} openModal={openModal} completeOrder={completeOrder} markPaid={markPaid}/>)}
+  </>;
+}
+
+function OrderCard({order,upd,openModal,completeOrder,markPaid}){
+  const sm=REPAIR_STATUS[order.status];
+  const netProfit=(order.income||0)-(order.expenses||0)-(order.deductions||0);
+  const pnlCls=netProfit>0?'pos':netProfit<0?'neg':'zero';
+  const days=daysOnHand(order.dateReceived);
+  
+  return<div className="lot-card">
+    <div className="lot-head" style={{cursor:'default'}}>
+      <div className="lot-info">
+        <div className="lot-name">{order.service} • {order.console} {order.consoleColor}</div>
+        <div className="lot-sub">
+          <span className="td">{fmtD(order.dateReceived)}</span>
+          {order.urgent&&<span className="tag" style={{background:'rgba(255,79,110,.12)',color:'var(--red)',fontWeight:700}}>⚡ Срочно</span>}
+          {order.clientName&&<span className="tag ts">👤 {order.clientName}</span>}
+          {order.status!=='paid'&&<span className="tag" style={{background:`${days<=1?'var(--accent)':days<=3?'var(--warn)':'var(--red)'}15`,color:days<=1?'var(--accent)':days<=3?'var(--warn)':'var(--red)',fontWeight:700}}>⏱ {days} {days===1?'день':days<5?'дня':'дней'}</span>}
+        </div>
+      </div>
+      <div className="lot-right">
+        <div style={{display:'grid',gridTemplateColumns:'auto auto auto',gap:'12px',alignItems:'center'}}>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Доход</div>
+            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a3)'}}>{fmt(order.income)}</div>
+          </div>
+          {order.expenses>0&&<div style={{textAlign:'right'}}>
+            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Затраты</div>
+            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a2)'}}>{fmt(order.expenses)}</div>
+          </div>}
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Чистая</div>
+            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700}} className={pnlCls}>{(netProfit>0?'+':'')+fmt(netProfit)}</div>
+          </div>
+        </div>
+        <div className={`pill ${sm.cls}`} style={{marginLeft:'12px'}}>{sm.icon} {sm.label}</div>
+      </div>
+    </div>
+    <div style={{padding:'12px 16px',borderTop:'1px solid var(--border)',display:'flex',gap:'8px',flexWrap:'wrap'}}>
+      {order.status==='in_progress'&&<button className="btn btn-a btn-sm" onClick={()=>completeOrder(order.id)}>✅ Завершить</button>}
+      {order.status==='completed'&&<button className="btn btn-a btn-sm" onClick={()=>markPaid(order.id)}>💰 Оплачено</button>}
+      <button className="btn btn-g btn-sm" onClick={()=>openModal('repair',{edit:order})}>✏ Изменить</button>
+      {order.clientPhone&&<a href={`tel:${order.clientPhone}`} className="btn btn-g btn-sm" style={{textDecoration:'none'}}>📞 Позвонить</a>}
+    </div>
+  </div>;
+}
+
+function RepairStatsTab({data}){
+  const repairs=data.repairs||[];
+  const totalIncome=repairs.reduce((s,r)=>s+(r.income||0),0);
+  const totalExpenses=repairs.reduce((s,r)=>s+(r.expenses||0),0);
+  const totalDeductions=repairs.reduce((s,r)=>s+(r.deductions||0),0);
+  const netProfit=totalIncome-totalExpenses-totalDeductions;
+  const margin=totalIncome>0?(netProfit/totalIncome*100):0;
+  const avgCheck=repairs.length>0?totalIncome/repairs.length:0;
+  
+  const byStatus={};
+  Object.keys(REPAIR_STATUS).forEach(k=>byStatus[k]=0);
+  repairs.forEach(r=>byStatus[r.status]++);
+  
+  const byService={};
+  REPAIR_SERVICES.forEach(s=>byService[s]=0);
+  repairs.forEach(r=>byService[r.service]=(byService[r.service]||0)+1);
+  
+  return<>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'10px',marginBottom:'20px'}}>
+      {[['Доход',fmt(totalIncome),'var(--a3)'],['Затраты',fmt(totalExpenses),'var(--a2)'],
+        ['Чистая прибыль',(netProfit>=0?'+':'')+fmt(netProfit),netProfit>=0?'var(--accent)':'var(--red)'],
+        ['Маржа',margin.toFixed(1)+'%',margin>=0?'var(--accent)':'var(--red)'],
+      ].map(([l,v,c])=><div key={l} style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:'var(--r2)',padding:'14px 16px'}}>
+        <div style={{fontSize:'.7rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.8px',fontWeight:700,marginBottom:'7px'}}>{l}</div>
+        <div style={{fontFamily:'var(--mono)',fontSize:'1.3rem',fontWeight:700,color:c}}>{v}</div>
+      </div>)}
+    </div>
+    
+    <div className="stat-grid">
+      <div className="stat-blk">
+        <div className="stat-blk-title">📊 Общие метрики</div>
+        {[['Заказов',repairs.length,'var(--text)'],['Средний чек',fmt(avgCheck),'var(--a3)'],
+          ['Отчисления',fmt(totalDeductions),'var(--warn)'],
+        ].map(([l,v,c])=><div key={l} className="stat-line"><span className="stat-ln-lbl">{l}</span><span className="stat-ln-val" style={{color:c}}>{v}</span></div>)}
+      </div>
+      <div className="stat-blk">
+        <div className="stat-blk-title">🔧 По статусам</div>
+        {Object.entries(REPAIR_STATUS).map(([k,v])=><div key={k} className="stat-line">
+          <span className="stat-ln-lbl">{v.icon} {v.label}</span>
+          <span className="stat-ln-val">{byStatus[k]}</span>
+        </div>)}
+      </div>
+    </div>
+    
+    {Object.values(byService).some(v=>v>0)&&<div className="stat-blk" style={{marginTop:'14px'}}>
+      <div className="stat-blk-title">💼 По услугам</div>
+      {Object.entries(byService).filter(([_,c])=>c>0).map(([s,c])=><div key={s} className="stat-line">
+        <span className="stat-ln-lbl">{s}</span>
+        <span className="stat-ln-val">{c}</span>
+      </div>)}
+    </div>}
+  </>;
+}
+
+function RepairModal({data,upd,init,close}){
+  const e=init.edit||null;
+  const[service,setService]=React.useState(e?.service||REPAIR_SERVICES[0]);
+  const[cn,setCn]=React.useState(e?.console||CONSOLES[0]);
+  const[cnCustom,setCnCustom]=React.useState('');
+  const[color,setColor]=React.useState(e?.consoleColor||'');
+  const[sn,setSn]=React.useState(e?.serialNumber||'');
+  const[income,setIncome]=React.useState(e?.income||'');
+  const[expenses,setExpenses]=React.useState(e?.expenses||'');
+  const[addIncome,setAddIncome]=React.useState(e?.additionalIncome||'');
+  const[urgent,setUrgent]=React.useState(e?.urgent||false);
+  const[status,setStatus]=React.useState(e?.status||'pending');
+  const[clientName,setClientName]=React.useState(e?.clientName||'');
+  const[clientPhone,setClientPhone]=React.useState(e?.clientPhone||'');
+  const[dateReceived,setDateReceived]=React.useState(e?.dateReceived||todayStr());
+  const[dateDeadline,setDateDeadline]=React.useState(e?.dateDeadline||todayStr());
+  const[payMethod,setPayMethod]=React.useState(e?.paymentMethod||'Наличные');
+  const[deductions,setDeductions]=React.useState(e?.deductions||'');
+  const[notes,setNotes]=React.useState(e?.notes||'');
+  
+  const colors=COLORS[cn]||[];
+  
+  const save=()=>{
+    const finalCn=cn==='Другая консоль'?cnCustom:cn;
+    if(!finalCn.trim()||!income)return;
+    const repairData={
+      service,console:finalCn,consoleColor:color,serialNumber:sn,
+      income:parseFloat(income),expenses:parseFloat(expenses)||0,additionalIncome:parseFloat(addIncome)||0,
+      urgent,status,clientName,clientPhone,dateReceived,dateDeadline,
+      paymentMethod:payMethod,deductions:parseFloat(deductions)||0,notes,
+      date:dateReceived,createdAt:e?.createdAt||new Date().toISOString()
+    };
+    if(e){
+      upd(d=>{const r=d.repairs.find(x=>x.id===e.id);if(r)Object.assign(r,repairData);return d;});
+    }else{
+      upd(d=>{if(!d.repairs)d.repairs=[];d.repairs.push({id:uid(),...repairData});return d;});
+    }
+    close();
+  };
+  
+  return<div className="ov">
+    <div className="modal" style={{maxWidth:'640px'}}>
+      <div className="modal-hdr"><div className="modal-title">{e?'Редактировать заказ':'Новый заказ'}</div><button className="modal-x" onClick={close}>✕</button></div>
+      <div className="modal-body">
+        <div className="fr-2">
+          <div className="fr"><label>Услуга</label>
+            <select value={service} onChange={ev=>setService(ev.target.value)}>{REPAIR_SERVICES.map(s=><option key={s}>{s}</option>)}</select></div>
+          <div className="fr"><label>Консоль</label>
+            <select value={cn} onChange={ev=>setCn(ev.target.value)}>{CONSOLES.map(c=><option key={c}>{c}</option>)}</select></div>
+        </div>
+        {cn==='Другая консоль'&&<div className="fr"><label>Название консоли</label><input value={cnCustom} onChange={ev=>setCnCustom(ev.target.value)} placeholder="Steam Deck, PS5..."/></div>}
+        <div className="fr-2">
+          <div className="fr"><label>Цвет</label>
+            <select value={color} onChange={ev=>setColor(ev.target.value)}>{colors.map(c=><option key={c}>{c}</option>)}</select></div>
+          <div className="fr"><label>Серийный номер</label><input value={sn} onChange={ev=>setSn(ev.target.value)} placeholder="XAW70123456"/></div>
+        </div>
+        <div className="fr-3">
+          <div className="fr"><label>Доход ₽</label><input type="number" value={income} onChange={ev=>setIncome(ev.target.value)} placeholder="4000"/></div>
+          <div className="fr"><label>Затраты ₽</label><input type="number" value={expenses} onChange={ev=>setExpenses(ev.target.value)} placeholder="500"/></div>
+          <div className="fr"><label>Доп. доход ₽</label><input type="number" value={addIncome} onChange={ev=>setAddIncome(ev.target.value)} placeholder="0"/></div>
+        </div>
+        <div className="fr-2">
+          <div className="fr"><label>Клиент</label><input value={clientName} onChange={ev=>setClientName(ev.target.value)} placeholder="Иван Петров"/></div>
+          <div className="fr"><label>Телефон</label><input value={clientPhone} onChange={ev=>setClientPhone(ev.target.value)} placeholder="+7 999 123-45-67"/></div>
+        </div>
+        <div className="fr-3">
+          <div className="fr"><label>Принято</label><input type="date" value={dateReceived} onChange={ev=>setDateReceived(ev.target.value)}/></div>
+          <div className="fr"><label>Сдать до</label><input type="date" value={dateDeadline} onChange={ev=>setDateDeadline(ev.target.value)}/></div>
+          <div className="fr"><label>Статус</label>
+            <select value={status} onChange={ev=>setStatus(ev.target.value)}>
+              {Object.entries(REPAIR_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+            </select></div>
+        </div>
+        <div className="fr-3">
+          <div className="fr"><label>Оплата</label>
+            <select value={payMethod} onChange={ev=>setPayMethod(ev.target.value)}>{PAYMENT_REPAIR.map(p=><option key={p}>{p}</option>)}</select></div>
+          <div className="fr"><label>Отчисления ₽</label><input type="number" value={deductions} onChange={ev=>setDeductions(ev.target.value)} placeholder="0"/></div>
+          <label className="check-row" style={{paddingTop:'28px'}}><input type="checkbox" checked={urgent} onChange={ev=>setUrgent(ev.target.checked)}/><span>⚡ Срочно</span></label>
+        </div>
+        <div className="fr" style={{marginBottom:0}}><label>Комментарий</label>
+          <textarea value={notes} onChange={ev=>setNotes(ev.target.value)} placeholder="Особенности, состояние..."/></div>
+      </div>
+      <div className="modal-footer">
+        <button className="btn btn-g" onClick={close}>Отмена</button>
+        <button className="btn btn-a" onClick={save}>Сохранить</button>
+      </div>
     </div>
   </div>;
 }
