@@ -223,6 +223,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:h
   .hdr>div:last-child{width:100%;flex-wrap:wrap}
 }
 .order-row:hover{background:rgba(255,255,255,.04)!important;}
+/* Десктоп: таблица с сеткой */
+.order-table-header{display:grid;grid-template-columns:1fr 90px 90px 90px 90px 110px 32px;gap:0;}
+.order-table-row{display:grid;grid-template-columns:1fr 90px 90px 90px 90px 110px 32px;gap:0;}
+/* Мобильные цифры скрыты на десктопе */
+.order-row-nums{display:none;}
+/* Мобиле — переключаем режим */
+@media(max-width:700px){
+  .order-table-header{display:none!important;}
+  .order-table-row{display:block!important;}
+  /* Показываем мобильные цифры */
+  .order-row-nums{display:flex!important;gap:16px;margin-top:8px;flex-wrap:wrap;align-items:flex-end;}
+  .order-row-num{display:flex;flex-direction:column;}
+  /* Скрываем десктопные колонки */
+  .order-desk-col{display:none!important;}
+}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 </style>
 </head>
@@ -619,18 +634,20 @@ function App(){
         <div className="sc-sub">{sub}</div>
       </div>)}
       {module==='repair'&&(()=>{
-        const repairs=(data.repairs||[]).filter(r=>!rMonth||mKey(r.date)===rMonth).filter(r=>!rService||r.service===rService);
+        const repairs=(data.repairs||[]).filter(r=>!rMonth||mKey(r.dateCompleted||r.date)===rMonth).filter(r=>!rService||r.service===rService);
         const totalIncome=repairs.reduce((s,r)=>s+(r.income||0)+(r.additionalIncome||0),0);
         const totalExpenses=repairs.reduce((s,r)=>s+(r.expenses||0),0);
         const totalDeductions=repairs.reduce((s,r)=>s+(r.deductions||0),0);
-        const totalAdCost=repairs.reduce((s,r)=>s+(r.adCost||0),0);
+        // Реклама из отдельного хранилища, фильтруем по тому же месяцу
+        const adBudgets=(data.adBudgets||[]).filter(a=>!rMonth||a.month===rMonth);
+        const totalAdCost=adBudgets.reduce((s,a)=>s+(a.amount||0),0);
         const netProfit=totalIncome-totalExpenses-totalDeductions-totalAdCost;
         const inProgress=repairs.filter(r=>r.status==='in_progress').length;
         const pending=repairs.filter(r=>r.status==='pending').length;
         return[['g',netProfit>=0?'g':'r','Прибыль',fmtS(netProfit),totalIncome>0?((netProfit/totalIncome*100).toFixed(1)+'% маржа'):'—'],
           ['b','b','Доход',fmtS(totalIncome),repairs.length+' заказов'],
           ['w','w','В работе',inProgress+'',pending?`${pending} ожидает`:'—'],
-          ['r','r','Затраты',fmtS(totalExpenses+totalDeductions),'расходы + отчисления'],
+          ['r','r','Затраты',fmtS(totalExpenses+totalDeductions+totalAdCost),'расходы + реклама'],
         ].map(([bc,vc,lbl,val,sub])=><div key={lbl} className={`sc ${bc}`}>
           <div className="sc-lbl">{lbl}</div>
           <div className={`sc-val ${vc}`}>{val}</div>
@@ -1658,8 +1675,8 @@ function OrdersTab({data,upd,openModal,fMonth,setFMonth,fService,setFService,fSt
     {!orders.length
       ?<div className="empty"><div className="empty-icon">🔧</div><div className="empty-txt">Нет заказов</div></div>
       :<div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:'var(--r2)',overflow:'hidden'}}>
-        {/* Шапка таблицы */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 90px 90px 90px 90px 110px 32px',gap:'0',borderBottom:'1px solid var(--border)',padding:'8px 16px',background:'var(--surf2)'}}>
+        {/* Шапка таблицы — скрывается на мобиле через CSS */}
+        <div className="order-table-header" style={{gap:'0',borderBottom:'1px solid var(--border)',padding:'8px 16px',background:'var(--surf2)'}}>
           <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.7px',color:'var(--t3)'}}>Заказ</div>
           <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.7px',color:'var(--t3)',textAlign:'right'}}>Чистая</div>
           <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.7px',color:'var(--t3)',textAlign:'right'}}>Затраты</div>
@@ -1682,18 +1699,16 @@ function OrderRow({order,upd,openModal,completeOrder,markPaid,isLast}){
   const isPaid=order.status==='paid';
 
   return<>
-    {/* Строка таблицы */}
     <div
-      className="order-row"
+      className="order-row order-table-row"
       onClick={()=>setExpanded(e=>!e)}
       style={{
-        display:'grid',gridTemplateColumns:'1fr 90px 90px 90px 90px 110px 32px',
         gap:'0',padding:'11px 16px',cursor:'pointer',
         borderBottom:(!isLast||expanded)?'1px solid var(--border)':'none',
         background:expanded?'rgba(255,255,255,.04)':'transparent',
       }}
     >
-      {/* Инфо */}
+      {/* Инфо — всегда видна, содержит мобильные цифры */}
       <div style={{minWidth:0}}>
         <div style={{fontSize:'.88rem',fontWeight:600,color:'var(--text)',display:'flex',alignItems:'center',gap:'7px',flexWrap:'wrap'}}>
           {order.service} • {order.console}
@@ -1705,34 +1720,51 @@ function OrderRow({order,upd,openModal,completeOrder,markPaid,isLast}){
           {order.clientSource&&<span style={{fontSize:'.7rem',padding:'1px 6px',background:'rgba(79,184,255,.1)',color:'var(--a3)',borderRadius:'4px'}}>{order.clientSource}</span>}
           {!isPaid&&<span style={{fontSize:'.7rem',fontWeight:700,color:days<=1?'var(--accent)':days<=3?'var(--warn)':'var(--red)'}}>⏱{days}д</span>}
         </div>
+        {/* Мобильные цифры — только на мобиле через CSS */}
+        <div className="order-row-nums">
+          <div className="order-row-num">
+            <span style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'2px'}}>Чистая</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:'.9rem',fontWeight:700,color:netProfit>=0?'var(--accent)':'var(--red)'}}>{(netProfit>=0?'+':'')+fmt(netProfit)}</span>
+          </div>
+          {order.expenses>0&&<div className="order-row-num">
+            <span style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'2px'}}>Затраты</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:'.9rem',fontWeight:700,color:'var(--a2)'}}>{fmt(order.expenses)}</span>
+          </div>}
+          {order.additionalIncome>0&&<div className="order-row-num">
+            <span style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'2px'}}>Доп.</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:'.9rem',fontWeight:700,color:'var(--a3)'}}>+{fmt(order.additionalIncome)}</span>
+          </div>}
+          <div className="order-row-num">
+            <span style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.5px',marginBottom:'2px'}}>Доход</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:'.9rem',fontWeight:700,color:'var(--a3)'}}>{fmt(order.income)}</span>
+          </div>
+          <div className="order-row-status">
+            <span className={`pill ${sm.cls}`} style={{fontSize:'.72rem',padding:'3px 8px'}}>{sm.icon} {sm.label}</span>
+          </div>
+        </div>
       </div>
-      {/* Чистая */}
-      <div style={{textAlign:'right',alignSelf:'center'}}>
-        <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:netProfit>=0?'var(--accent)':'var(--red)'}}>{(netProfit>=0?'+':'')+fmt(netProfit)}</div>
+      {/* Десктопные колонки — скрываются на мобиле */}
+      <div className="order-desk-col" style={{textAlign:'right',alignSelf:'center'}}>
+        <span style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:netProfit>=0?'var(--accent)':'var(--red)'}}>{(netProfit>=0?'+':'')+fmt(netProfit)}</span>
       </div>
-      {/* Затраты */}
-      <div style={{textAlign:'right',alignSelf:'center'}}>
-        <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:order.expenses>0?'var(--a2)':'var(--t3)'}}>{order.expenses>0?fmt(order.expenses):'—'}</div>
+      <div className="order-desk-col" style={{textAlign:'right',alignSelf:'center'}}>
+        <span style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:order.expenses>0?'var(--a2)':'var(--t3)'}}>{order.expenses>0?fmt(order.expenses):'—'}</span>
       </div>
-      {/* Доп */}
-      <div style={{textAlign:'right',alignSelf:'center'}}>
-        <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:order.additionalIncome>0?'var(--a3)':'var(--t3)'}}>{order.additionalIncome>0?'+'+fmt(order.additionalIncome):'—'}</div>
+      <div className="order-desk-col" style={{textAlign:'right',alignSelf:'center'}}>
+        <span style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:order.additionalIncome>0?'var(--a3)':'var(--t3)'}}>{order.additionalIncome>0?'+'+fmt(order.additionalIncome):'—'}</span>
       </div>
-      {/* Доход */}
-      <div style={{textAlign:'right',alignSelf:'center'}}>
-        <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a3)'}}>{fmt(order.income)}</div>
+      <div className="order-desk-col" style={{textAlign:'right',alignSelf:'center'}}>
+        <span style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a3)'}}>{fmt(order.income)}</span>
       </div>
-      {/* Статус */}
-      <div style={{textAlign:'right',alignSelf:'center'}}>
+      <div className="order-desk-col" style={{textAlign:'right',alignSelf:'center'}}>
         <span className={`pill ${sm.cls}`} style={{fontSize:'.72rem',padding:'3px 8px',whiteSpace:'nowrap'}}>{sm.icon} {sm.label}</span>
       </div>
-      {/* Шеврон */}
-      <div style={{textAlign:'center',alignSelf:'center',color:'var(--t3)',fontSize:'.75rem',transform:expanded?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</div>
+      <div className="order-desk-col order-row-chev" style={{textAlign:'center',alignSelf:'center',color:'var(--t3)',fontSize:'.75rem',transform:expanded?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</div>
     </div>
 
     {/* Раскрытая панель */}
     {expanded&&<div style={{padding:'14px 16px',borderBottom:!isLast?'1px solid var(--border)':'none',background:'var(--surf3)'}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'10px',marginBottom:'12px'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:'10px',marginBottom:'12px'}}>
         {order.serialNumber&&<div><div style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:600,marginBottom:'3px'}}>СЕРИЙНЫЙ №</div><div style={{fontSize:'.85rem',fontFamily:'var(--mono)',color:'var(--text)'}}>{order.serialNumber}</div></div>}
         {order.clientPhone&&<div><div style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:600,marginBottom:'3px'}}>ТЕЛЕФОН</div><div><a href={`tel:${order.clientPhone}`} style={{fontSize:'.85rem',color:'var(--a3)'}}>{order.clientPhone}</a></div></div>}
         {order.dateReceived&&<div><div style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:600,marginBottom:'3px'}}>ПРИНЯТО</div><div style={{fontSize:'.85rem',color:'var(--text)'}}>{fmtD(order.dateReceived)}</div></div>}
