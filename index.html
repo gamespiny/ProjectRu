@@ -304,7 +304,7 @@ const GD = {
   _onTokenExpired: null, // колбэк — вызывается когда токен протух
 
   async _callFunction(action, extraData = {}) {
-    const response = await fetch('/.netlify/functions/google-drive', {
+    const response = await fetch('/api/google-drive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
