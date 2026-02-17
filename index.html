@@ -222,6 +222,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:h
   .hdr{flex-direction:column;gap:10px;align-items:flex-start}
   .hdr>div:last-child{width:100%;flex-wrap:wrap}
 }
+.order-row:hover{background:rgba(255,255,255,.04)!important;}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 </style>
 </head>
@@ -1654,71 +1655,95 @@ function OrdersTab({data,upd,openModal,fMonth,setFMonth,fService,setFService,fSt
         <span className="sec-cnt">{orders.length}</span>
       </div>
     </div>
-    {!orders.length?<div className="empty"><div className="empty-icon">🔧</div><div className="empty-txt">Нет заказов</div></div>
-      :orders.map(order=><OrderCard key={order.id} order={order} upd={upd} openModal={openModal} completeOrder={completeOrder} markPaid={markPaid}/>)}
+    {!orders.length
+      ?<div className="empty"><div className="empty-icon">🔧</div><div className="empty-txt">Нет заказов</div></div>
+      :<div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:'var(--r2)',overflow:'hidden'}}>
+        {/* Шапка таблицы */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 90px 90px 90px 90px 110px 32px',gap:'0',borderBottom:'1px solid var(--border)',padding:'8px 16px',background:'var(--surf2)'}}>
+          <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.7px',color:'var(--t3)'}}>Заказ</div>
+          <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.7px',color:'var(--t3)',textAlign:'right'}}>Чистая</div>
+          <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.7px',color:'var(--t3)',textAlign:'right'}}>Затраты</div>
+          <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.7px',color:'var(--t3)',textAlign:'right'}}>Доп.</div>
+          <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.7px',color:'var(--t3)',textAlign:'right'}}>Доход</div>
+          <div style={{fontSize:'.65rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.7px',color:'var(--t3)',textAlign:'right'}}>Статус</div>
+          <div/>
+        </div>
+        {orders.map((order,idx)=><OrderRow key={order.id} order={order} upd={upd} openModal={openModal} completeOrder={completeOrder} markPaid={markPaid} isLast={idx===orders.length-1}/>)}
+      </div>}
   </>;
 }
 
-function OrderCard({order,upd,openModal,completeOrder,markPaid}){
+function OrderRow({order,upd,openModal,completeOrder,markPaid,isLast}){
   const[expanded,setExpanded]=React.useState(false);
   const sm=REPAIR_STATUS[order.status];
   const totalIncome=(order.income||0)+(order.additionalIncome||0);
-  const netProfit=totalIncome-(order.expenses||0)-(order.deductions||0)-(order.adCost||0);
-  const pnlCls=netProfit>0?'pos':netProfit<0?'neg':'zero';
+  const netProfit=totalIncome-(order.expenses||0)-(order.deductions||0);
   const days=daysOnHand(order.dateReceived);
-  
-  return<div className="lot-card">
-    <div className="lot-head" onClick={()=>setExpanded(e=>!e)} style={{cursor:'pointer'}}>
-      <div className="lot-info">
-        <div className="lot-name">{order.service} • {order.console}</div>
-        <div className="lot-sub">
-          <span className="td">{fmtD(order.dateReceived)}</span>
-          {order.urgent&&<span className="tag" style={{background:'rgba(255,79,110,.12)',color:'var(--red)',fontWeight:700}}>⚡ Срочно</span>}
-          {order.clientName&&<span className="tag ts">👤 {order.clientName}</span>}
-          {order.clientSource&&<span className="tag" style={{background:'rgba(79,184,255,.1)',color:'var(--a3)'}}>📍 {order.clientSource}</span>}
-          {order.status!=='paid'&&<span className="tag" style={{background:`${days<=1?'var(--accent)':days<=3?'var(--warn)':'var(--red)'}15`,color:days<=1?'var(--accent)':days<=3?'var(--warn)':'var(--red)',fontWeight:700}}>⏱ {days} {days===1?'день':days<5?'дня':'дней'}</span>}
+  const isPaid=order.status==='paid';
+
+  return<>
+    {/* Строка таблицы */}
+    <div
+      className="order-row"
+      onClick={()=>setExpanded(e=>!e)}
+      style={{
+        display:'grid',gridTemplateColumns:'1fr 90px 90px 90px 90px 110px 32px',
+        gap:'0',padding:'11px 16px',cursor:'pointer',
+        borderBottom:(!isLast||expanded)?'1px solid var(--border)':'none',
+        background:expanded?'rgba(255,255,255,.04)':'transparent',
+      }}
+    >
+      {/* Инфо */}
+      <div style={{minWidth:0}}>
+        <div style={{fontSize:'.88rem',fontWeight:600,color:'var(--text)',display:'flex',alignItems:'center',gap:'7px',flexWrap:'wrap'}}>
+          {order.service} • {order.console}
+          {order.urgent&&<span style={{fontSize:'.7rem',color:'var(--red)',fontWeight:700}}>⚡</span>}
+        </div>
+        <div style={{display:'flex',gap:'7px',marginTop:'4px',flexWrap:'wrap',alignItems:'center'}}>
+          <span style={{fontSize:'.72rem',color:'var(--t3)'}}>{fmtD(order.dateCompleted||order.dateReceived)}</span>
+          {order.clientName&&<span style={{fontSize:'.72rem',color:'var(--t3)'}}>• 👤 {order.clientName}</span>}
+          {order.clientSource&&<span style={{fontSize:'.7rem',padding:'1px 6px',background:'rgba(79,184,255,.1)',color:'var(--a3)',borderRadius:'4px'}}>{order.clientSource}</span>}
+          {!isPaid&&<span style={{fontSize:'.7rem',fontWeight:700,color:days<=1?'var(--accent)':days<=3?'var(--warn)':'var(--red)'}}>⏱{days}д</span>}
         </div>
       </div>
-      <div className="lot-right">
-        <div style={{display:'flex',gap:'0',alignItems:'center'}}>
-          {/* Чистая — всегда первая, фиксированная ширина */}
-          <div style={{textAlign:'right',minWidth:'110px'}}>
-            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Чистая</div>
-            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:netProfit>=0?'var(--accent)':'var(--red)'}}>{(netProfit>0?'+':'')+fmt(netProfit)}</div>
-          </div>
-          {order.expenses>0&&<div style={{textAlign:'right',minWidth:'100px',marginLeft:'12px'}}>
-            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Затраты</div>
-            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a2)'}}>{fmt(order.expenses)}</div>
-          </div>}
-          {order.additionalIncome>0&&<div style={{textAlign:'right',minWidth:'90px',marginLeft:'12px'}}>
-            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Доп.</div>
-            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a3)'}}>+{fmt(order.additionalIncome)}</div>
-          </div>}
-          <div style={{textAlign:'right',minWidth:'100px',marginLeft:'12px'}}>
-            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Доход</div>
-            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a3)'}}>{fmt(order.income)}</div>
-          </div>
-        </div>
-        <div className={`pill ${sm.cls}`} style={{marginLeft:'12px'}}>{sm.icon} {sm.label}</div>
-        <div className={`chev ${expanded?'open':''}`} style={{marginLeft:'6px'}}>▾</div>
+      {/* Чистая */}
+      <div style={{textAlign:'right',alignSelf:'center'}}>
+        <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:netProfit>=0?'var(--accent)':'var(--red)'}}>{(netProfit>=0?'+':'')+fmt(netProfit)}</div>
       </div>
+      {/* Затраты */}
+      <div style={{textAlign:'right',alignSelf:'center'}}>
+        <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:order.expenses>0?'var(--a2)':'var(--t3)'}}>{order.expenses>0?fmt(order.expenses):'—'}</div>
+      </div>
+      {/* Доп */}
+      <div style={{textAlign:'right',alignSelf:'center'}}>
+        <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:order.additionalIncome>0?'var(--a3)':'var(--t3)'}}>{order.additionalIncome>0?'+'+fmt(order.additionalIncome):'—'}</div>
+      </div>
+      {/* Доход */}
+      <div style={{textAlign:'right',alignSelf:'center'}}>
+        <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a3)'}}>{fmt(order.income)}</div>
+      </div>
+      {/* Статус */}
+      <div style={{textAlign:'right',alignSelf:'center'}}>
+        <span className={`pill ${sm.cls}`} style={{fontSize:'.72rem',padding:'3px 8px',whiteSpace:'nowrap'}}>{sm.icon} {sm.label}</span>
+      </div>
+      {/* Шеврон */}
+      <div style={{textAlign:'center',alignSelf:'center',color:'var(--t3)',fontSize:'.75rem',transform:expanded?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>▾</div>
     </div>
-    
-    {/* РАСКРЫТАЯ ИНФОРМАЦИЯ */}
-    {expanded&&<div style={{padding:'14px 16px',borderTop:'1px solid var(--border)',background:'var(--surf2)'}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'12px',marginBottom:'14px'}}>
-        {order.serialNumber&&<div><span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Серийный номер:</span><div style={{fontSize:'.88rem',color:'var(--text)',fontFamily:'var(--mono)',marginTop:'3px'}}>{order.serialNumber}</div></div>}
-        {order.clientPhone&&<div><span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Телефон:</span><div style={{marginTop:'3px'}}><a href={`tel:${order.clientPhone}`} style={{fontSize:'.88rem',color:'var(--a3)'}}>{order.clientPhone}</a></div></div>}
-        {order.dateDeadline&&<div><span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Сдать до:</span><div style={{fontSize:'.88rem',color:'var(--text)',marginTop:'3px'}}>{fmtD(order.dateDeadline)}</div></div>}
-        {order.paymentMethod&&<div><span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Оплата:</span><div style={{fontSize:'.88rem',color:'var(--text)',marginTop:'3px'}}>{order.paymentMethod}{order.deductions>0?` (−${fmt(order.deductions)} отч.)`:''}</div></div>}
-        {order.additionalIncome>0&&<div><span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Доп. доход:</span><div style={{fontSize:'.88rem',color:'var(--accent)',marginTop:'3px'}}>+{fmt(order.additionalIncome)}{order.additionalIncomeNote?' — '+order.additionalIncomeNote:''}</div></div>}
-        {order.adCost>0&&<div><span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Реклама:</span><div style={{fontSize:'.88rem',color:'var(--warn)',marginTop:'3px'}}>−{fmt(order.adCost)}</div></div>}
+
+    {/* Раскрытая панель */}
+    {expanded&&<div style={{padding:'14px 16px',borderBottom:!isLast?'1px solid var(--border)':'none',background:'var(--surf3)'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:'10px',marginBottom:'12px'}}>
+        {order.serialNumber&&<div><div style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:600,marginBottom:'3px'}}>СЕРИЙНЫЙ №</div><div style={{fontSize:'.85rem',fontFamily:'var(--mono)',color:'var(--text)'}}>{order.serialNumber}</div></div>}
+        {order.clientPhone&&<div><div style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:600,marginBottom:'3px'}}>ТЕЛЕФОН</div><div><a href={`tel:${order.clientPhone}`} style={{fontSize:'.85rem',color:'var(--a3)'}}>{order.clientPhone}</a></div></div>}
+        {order.dateReceived&&<div><div style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:600,marginBottom:'3px'}}>ПРИНЯТО</div><div style={{fontSize:'.85rem',color:'var(--text)'}}>{fmtD(order.dateReceived)}</div></div>}
+        {order.paymentMethod&&<div><div style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:600,marginBottom:'3px'}}>ОПЛАТА</div><div style={{fontSize:'.85rem',color:'var(--text)'}}>{order.paymentMethod}{order.deductions>0?` (−${fmt(order.deductions)} отч.)`:''}</div></div>}
+        {order.additionalIncome>0&&<div><div style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:600,marginBottom:'3px'}}>ДОП. ДОХОД</div><div style={{fontSize:'.85rem',color:'var(--accent)'}}>+{fmt(order.additionalIncome)}{order.additionalIncomeNote?' — '+order.additionalIncomeNote:''}</div></div>}
       </div>
-      {order.clientLink&&<div style={{marginBottom:'12px',padding:'8px 10px',background:'var(--surf3)',borderRadius:'6px'}}>
-        <span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>Ссылка на диалог: </span>
+      {order.clientLink&&<div style={{marginBottom:'10px',padding:'7px 10px',background:'var(--surf2)',borderRadius:'6px'}}>
+        <span style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:600}}>ССЫЛКА НА ДИАЛОГ: </span>
         <a href={order.clientLink} target="_blank" style={{fontSize:'.82rem',color:'var(--a3)',wordBreak:'break-all'}}>{order.clientLink}</a>
       </div>}
-      {order.notes&&<div style={{marginBottom:'12px',fontSize:'.85rem',color:'var(--t2)',fontStyle:'italic'}}>💬 {order.notes}</div>}
+      {order.notes&&<div style={{marginBottom:'10px',fontSize:'.85rem',color:'var(--t2)',fontStyle:'italic'}}>💬 {order.notes}</div>}
       <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
         {order.status==='in_progress'&&<button className="btn btn-a btn-sm" onClick={e=>{e.stopPropagation();completeOrder(order.id);}}>✅ Завершить</button>}
         {order.status==='completed'&&<button className="btn btn-a btn-sm" onClick={e=>{e.stopPropagation();markPaid(order.id);}}>💰 Оплачено</button>}
@@ -1727,7 +1752,7 @@ function OrderCard({order,upd,openModal,completeOrder,markPaid}){
         <button className="btn btn-d btn-sm" style={{marginLeft:'auto'}} onClick={e=>{e.stopPropagation();openModal('del',{repairId:order.id,name:`${order.service} • ${order.console}`});}}>🗑 Удалить</button>
       </div>
     </div>}
-  </div>;
+  </>;
 }
 
 function RepairStatsTab({data,upd,fMonth,setFMonth,fService,setFService}){
