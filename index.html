@@ -406,9 +406,29 @@ const GD = {
 const USE_GD = true; // Netlify всегда использует Google Drive
 const SKEY='cf_v3';
 const loadState=()=>{try{const r=localStorage.getItem(SKEY);if(r)return JSON.parse(r);}catch(e){}return null;};
+
+// Защита от бесконечных циклов сохранения (debounce)
+let lastSaveAttempt = 0;
+let saveTimeout = null;
 const saveState=s=>{
+  // Локальный кэш сохраняем сразу
   try{localStorage.setItem(SKEY,JSON.stringify(s));}catch(e){}
-  if(USE_GD) GD.save(s).catch(()=>{});
+  
+  // Drive — с задержкой и защитой от спама
+  if(USE_GD) {
+    const now = Date.now();
+    // Если последняя попытка была меньше 2 секунд назад — откладываем
+    if(now - lastSaveAttempt < 2000) {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        lastSaveAttempt = Date.now();
+        GD.save(s).catch(err => console.warn('GD save failed:', err));
+      }, 2000);
+    } else {
+      lastSaveAttempt = now;
+      GD.save(s).catch(err => console.warn('GD save failed:', err));
+    }
+  }
 };
 
 const makeDemoData=()=>{
