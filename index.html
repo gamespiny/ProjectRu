@@ -215,7 +215,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:h
 @media(max-width:600px){
   .sbar{grid-template-columns:repeat(2,1fr)}
   .lot-badge{display:none}
-  .lot-head{padding:11px 13px}
+  .lot-head{padding:11px 13px;flex-direction:column;gap:10px}
+  .lot-right{width:100%;flex-direction:column;align-items:stretch}
+  .lot-right>div:first-child{display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:8px!important;width:100%}
+  .lot-right .pill{margin-left:0!important;align-self:flex-start}
+  .hdr{flex-direction:column;gap:10px;align-items:flex-start}
+  .hdr>div:last-child{width:100%;flex-wrap:wrap}
 }
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 </style>
@@ -251,6 +256,7 @@ const REPAIR_STATUS={
   completed:{label:'Готово',cls:'p-sold',icon:'✅'},
   paid:{label:'Оплачено',cls:'p-sold',icon:'💰'},
 };
+const CLIENT_SOURCES=['Авито','ВКонтакте','Сарафан','Другое'];
 const MONTHS_RU=['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
 const MONTHS_FULL=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
@@ -470,16 +476,33 @@ function App(){
   const openModal=(type,d={})=>setModal({type,d});
   const closeModal=()=>setModal(null);
 
+  const[headerPeriod,setHeaderPeriod]=useState('month'); // month | year | all
+  const curMonth=useMemo(()=>mKey(todayStr()),[]);
+  const curYear=useMemo(()=>todayStr().slice(0,4),[]);
+
   const stats=useMemo(()=>{
-    const invested=data.lots.reduce((s,l)=>s+(l.cost||0),0);
-    const revenue=data.sales.reduce((s,x)=>s+(x.amount||0),0);
-    const promoCosts=data.sales.reduce((s,x)=>s+(x.promoCost||0),0);
+    // Фильтруем данные по выбранному периоду для шапки
+    let filtLots=data.lots;
+    let filtSales=data.sales;
+    if(headerPeriod==='month'){
+      filtSales=data.sales.filter(s=>mKey(s.date)===curMonth);
+      const ids=new Set(filtSales.map(s=>s.lotId));
+      filtLots=data.lots.filter(l=>ids.has(l.id));
+    } else if(headerPeriod==='year'){
+      filtSales=data.sales.filter(s=>s.date&&s.date.startsWith(curYear));
+      const ids=new Set(filtSales.map(s=>s.lotId));
+      filtLots=data.lots.filter(l=>ids.has(l.id));
+    }
+    const invested=filtLots.reduce((s,l)=>s+(l.cost||0),0);
+    const revenue=filtSales.reduce((s,x)=>s+(x.amount||0),0);
+    const promoCosts=filtSales.reduce((s,x)=>s+(x.promoCost||0),0);
     const profit=revenue-invested-promoCosts;
     const margin=invested>0?profit/invested*100:0;
+    // Для "не закрыто" всегда все лоты
     const openLots=data.lots.filter(l=>computeStatus(l,data.sales)!=='sold');
     const frozen=openLots.reduce((s,l)=>s+Math.max(0,(l.cost||0)-lotSalesTotal(data.sales,l.id)),0);
     return{invested,revenue,profit,margin,frozen,openCount:openLots.length,promoCosts};
-  },[data]);
+  },[data,headerPeriod,curMonth,curYear]);
 
   const lotMonths=useMemo(()=>[...new Set(data.lots.map(l=>mKey(l.date)).filter(Boolean))].sort().reverse(),[data.lots]);
   const saleMonths=useMemo(()=>[...new Set(data.sales.map(s=>mKey(s.date)).filter(Boolean))].sort().reverse(),[data.sales]);
@@ -565,8 +588,22 @@ function App(){
         {module==='repair'&&<button className="btn btn-a" onClick={()=>openModal('repair',{})}>+ Заказ</button>}
       </div>
     </div>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+      {module==='resale'&&<div style={{display:'flex',gap:'4px',background:'var(--surf2)',padding:'3px',borderRadius:'8px'}}>
+        {[['month','Месяц'],['year','Год'],['all','Всё время']].map(([k,l])=>(
+          <button key={k} onClick={()=>setHeaderPeriod(k)} style={{padding:'5px 14px',background:headerPeriod===k?'var(--surf3)':'transparent',border:'none',borderRadius:'6px',color:headerPeriod===k?'var(--text)':'var(--t3)',fontSize:'.78rem',fontWeight:600,cursor:'pointer',fontFamily:'var(--sans)'}}>{l}</button>
+        ))}
+      </div>}
+      {module==='repair'&&<div/>}
+      <div style={{fontSize:'.72rem',color:'var(--t3)'}}>
+        {module==='resale'&&headerPeriod==='month'&&MONTHS_FULL[parseInt(curMonth.split('-')[1])-1]+' '+curMonth.split('-')[0]}
+        {module==='resale'&&headerPeriod==='year'&&curYear+' год'}
+        {module==='resale'&&headerPeriod==='all'&&'За всё время'}
+      </div>
+    </div>
     <div className="sbar">
-      {module==='resale'&&[['g',stats.profit>=0?'g':'r','Прибыль',fmtS(stats.profit),(stats.margin>=0?'+':'')+stats.margin.toFixed(1)+'% маржа'],
+      {module==='resale'&&[
+        ['g',stats.profit>=0?'g':'r','Прибыль',fmtS(stats.profit),(stats.margin>=0?'+':'')+stats.margin.toFixed(1)+'% маржа'],
         ['b','b','Выручка',fmtS(stats.revenue),data.sales.length+' сделок'],
         ['w','w','Не закрыто',stats.openCount+'','−'+fmtS(stats.frozen)],
         ['r','r','Вложено',fmtS(stats.invested),data.lots.length+' лотов'],
@@ -577,7 +614,7 @@ function App(){
       </div>)}
       {module==='repair'&&(()=>{
         const repairs=data.repairs||[];
-        const totalIncome=repairs.reduce((s,r)=>s+(r.income||0),0);
+        const totalIncome=repairs.reduce((s,r)=>s+(r.income||0)+(r.additionalIncome||0),0);
         const totalExpenses=repairs.reduce((s,r)=>s+(r.expenses||0),0);
         const totalDeductions=repairs.reduce((s,r)=>s+(r.deductions||0),0);
         const netProfit=totalIncome-totalExpenses-totalDeductions;
@@ -754,16 +791,8 @@ function LotCard({lot,data,upd,expanded,toggle,openModal}){
         </div>
       </div>
       <div className="lot-right">
-        <div style={{display:'grid',gridTemplateColumns:'auto auto auto auto',gap:'12px',alignItems:'center'}}>
-          <div style={{textAlign:'right'}}>
-            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Затраты</div>
-            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a2)'}}>{fmt(lot.cost)}</div>
-          </div>
+        <div style={{display:'grid',gridTemplateColumns:sold>0?'auto auto auto auto':'auto',gap:'12px',alignItems:'center'}}>
           {sold>0&&<>
-            <div style={{textAlign:'right'}}>
-              <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Выручка</div>
-              <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a3)'}}>{fmt(sold)}</div>
-            </div>
             <div style={{textAlign:'right'}}>
               <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Прибыль</div>
               <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700}} className={`${pnlCls}`}>{(profit>0?'+':'')+fmt(profit)}</div>
@@ -773,6 +802,14 @@ function LotCard({lot,data,upd,expanded,toggle,openModal}){
               <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700}} className={`${pnlCls}`}>{lot.cost>0?((profit/lot.cost*100).toFixed(1)+'%'):'—'}</div>
             </div>
           </>}
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Затраты</div>
+            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a2)'}}>{fmt(lot.cost)}</div>
+          </div>
+          {sold>0&&<div style={{textAlign:'right'}}>
+            <div style={{fontSize:'.65rem',color:'var(--t3)',marginBottom:'3px',textTransform:'uppercase',letterSpacing:'.5px',fontWeight:600}}>Выручка</div>
+            <div style={{fontFamily:'var(--mono)',fontSize:'.88rem',fontWeight:700,color:'var(--a3)'}}>{fmt(sold)}</div>
+          </div>}
         </div>
         <div className={`pill ${sm.cls}`} style={{marginLeft:'12px'}}>{sm.label}</div>
         <div className={`chev ${expanded?'open':''}`}>▾</div>
@@ -1029,12 +1066,20 @@ function StatsTab({data,stats}){
     <div className="stat-grid">
       <div className="stat-blk">
         <div className="stat-blk-title">💰 Финансы</div>
-        {[['Выручка',fmt(fRevenue),'var(--a3)'],['Вложено',fmt(fInvested),'var(--a2)'],
-          ['Продвижение',fPromoCosts>0?'−'+fmt(fPromoCosts):'—','var(--warn)'],
-          ['Прибыль',(fProfit>=0?'+':'')+fmt(fProfit),fProfit>=0?'var(--accent)':'var(--red)'],
-          ['Маржа',fMargin.toFixed(1)+'%',fMargin>=0?'var(--accent)':'var(--red)'],
-          ['Средний чек',fmt(avgDeal),'var(--text)'],['Сделок',fSales.length,'var(--a3)'],
-        ].map(([l,v,c])=><div key={l} className="stat-line"><span className="stat-ln-lbl">{l}</span><span className="stat-ln-val" style={{color:c}}>{v}</span></div>)}
+        {(()=>{
+          const extraCosts=fLots.reduce((s,l)=>s+(l.costChip||0)+(l.costSD||0)+(l.costAdapter||0)+(l.costGlass||0)+(l.costCase||0)+(l.costDefect||0)+(l.costDelivery||0)+(l.costOther||0),0);
+          const avgDeal=fSales.length>0?fRevenue/fSales.length:0;
+          return[
+            ['Прибыль',(fProfit>=0?'+':'')+fmt(fProfit),fProfit>=0?'var(--accent)':'var(--red)'],
+            ['Маржа',fMargin.toFixed(1)+'%',fMargin>=0?'var(--accent)':'var(--red)'],
+            ['Выручка',fmt(fRevenue),'var(--a3)'],
+            ['Вложено',fmt(fInvested),'var(--a2)'],
+            ['Продвижение',fPromoCosts>0?'−'+fmt(fPromoCosts):'—','var(--warn)'],
+            ...(extraCosts>0?[['Доп затраты','−'+fmt(extraCosts),'var(--warn)']]:[ ]),
+            ['Средний чек',fSales.length>0?fmt(avgDeal):'—','var(--text)'],
+            ['Сделок',fSales.length,'var(--a3)'],
+          ].map(([l,v,c])=><div key={l} className="stat-line"><span className="stat-ln-lbl">{l}</span><span className="stat-ln-val" style={{color:c}}>{v}</span></div>);
+        })()}
       </div>
       <div className="stat-blk">
         <div className="stat-blk-title">📦 Лоты</div>
@@ -1556,18 +1601,20 @@ function OrdersTab({data,upd,openModal}){
 
 function OrderCard({order,upd,openModal,completeOrder,markPaid}){
   const sm=REPAIR_STATUS[order.status];
-  const netProfit=(order.income||0)-(order.expenses||0)-(order.deductions||0);
+  const totalIncome=(order.income||0)+(order.additionalIncome||0);
+  const netProfit=totalIncome-(order.expenses||0)-(order.deductions||0);
   const pnlCls=netProfit>0?'pos':netProfit<0?'neg':'zero';
   const days=daysOnHand(order.dateReceived);
   
   return<div className="lot-card">
     <div className="lot-head" style={{cursor:'default'}}>
       <div className="lot-info">
-        <div className="lot-name">{order.service} • {order.console} {order.consoleColor}</div>
+        <div className="lot-name">{order.service} • {order.console}</div>
         <div className="lot-sub">
           <span className="td">{fmtD(order.dateReceived)}</span>
           {order.urgent&&<span className="tag" style={{background:'rgba(255,79,110,.12)',color:'var(--red)',fontWeight:700}}>⚡ Срочно</span>}
           {order.clientName&&<span className="tag ts">👤 {order.clientName}</span>}
+          {order.clientSource&&<span className="tag" style={{background:'rgba(79,184,255,.1)',color:'var(--a3)'}}>📍 {order.clientSource}</span>}
           {order.status!=='paid'&&<span className="tag" style={{background:`${days<=1?'var(--accent)':days<=3?'var(--warn)':'var(--red)'}15`,color:days<=1?'var(--accent)':days<=3?'var(--warn)':'var(--red)',fontWeight:700}}>⏱ {days} {days===1?'день':days<5?'дня':'дней'}</span>}
         </div>
       </div>
@@ -1600,7 +1647,7 @@ function OrderCard({order,upd,openModal,completeOrder,markPaid}){
 
 function RepairStatsTab({data}){
   const repairs=data.repairs||[];
-  const totalIncome=repairs.reduce((s,r)=>s+(r.income||0),0);
+  const totalIncome=repairs.reduce((s,r)=>s+(r.income||0)+(r.additionalIncome||0),0);
   const totalExpenses=repairs.reduce((s,r)=>s+(r.expenses||0),0);
   const totalDeductions=repairs.reduce((s,r)=>s+(r.deductions||0),0);
   const netProfit=totalIncome-totalExpenses-totalDeductions;
@@ -1657,30 +1704,42 @@ function RepairModal({data,upd,init,close}){
   const[service,setService]=React.useState(e?.service||REPAIR_SERVICES[0]);
   const[cn,setCn]=React.useState(e?.console||CONSOLES[0]);
   const[cnCustom,setCnCustom]=React.useState('');
-  const[color,setColor]=React.useState(e?.consoleColor||'');
   const[sn,setSn]=React.useState(e?.serialNumber||'');
   const[income,setIncome]=React.useState(e?.income||'');
   const[expenses,setExpenses]=React.useState(e?.expenses||'');
   const[addIncome,setAddIncome]=React.useState(e?.additionalIncome||'');
+  const[addIncomeNote,setAddIncomeNote]=React.useState(e?.additionalIncomeNote||'');
   const[urgent,setUrgent]=React.useState(e?.urgent||false);
   const[status,setStatus]=React.useState(e?.status||'pending');
   const[clientName,setClientName]=React.useState(e?.clientName||'');
   const[clientPhone,setClientPhone]=React.useState(e?.clientPhone||'');
+  const[clientSource,setClientSource]=React.useState(e?.clientSource||CLIENT_SOURCES[0]);
+  const[clientLink,setClientLink]=React.useState(e?.clientLink||'');
   const[dateReceived,setDateReceived]=React.useState(e?.dateReceived||todayStr());
   const[dateDeadline,setDateDeadline]=React.useState(e?.dateDeadline||todayStr());
   const[payMethod,setPayMethod]=React.useState(e?.paymentMethod||'Наличные');
-  const[deductions,setDeductions]=React.useState(e?.deductions||'');
+  const[deductions,setDeductions]=React.useState(e?.deductions?.toString()||'');
   const[notes,setNotes]=React.useState(e?.notes||'');
   
-  const colors=COLORS[cn]||[];
+  // Автозаполнение отчислений 4% для карты
+  React.useEffect(()=>{
+    if(payMethod==='Карта'&&income){
+      const totalIncome=(parseFloat(income)||0)+(parseFloat(addIncome)||0);
+      setDeductions((totalIncome*0.04).toFixed(0));
+    }else if(payMethod!=='Карта'){
+      setDeductions('0');
+    }
+  },[payMethod,income,addIncome]);
   
   const save=()=>{
     const finalCn=cn==='Другая консоль'?cnCustom:cn;
     if(!finalCn.trim()||!income)return;
     const repairData={
-      service,console:finalCn,consoleColor:color,serialNumber:sn,
-      income:parseFloat(income),expenses:parseFloat(expenses)||0,additionalIncome:parseFloat(addIncome)||0,
-      urgent,status,clientName,clientPhone,dateReceived,dateDeadline,
+      service,console:finalCn,serialNumber:sn,
+      income:parseFloat(income),expenses:parseFloat(expenses)||0,
+      additionalIncome:parseFloat(addIncome)||0,additionalIncomeNote:addIncomeNote,
+      urgent,status,clientName,clientPhone,clientSource,clientLink,
+      dateReceived,dateDeadline,
       paymentMethod:payMethod,deductions:parseFloat(deductions)||0,notes,
       date:dateReceived,createdAt:e?.createdAt||new Date().toISOString()
     };
@@ -1703,19 +1762,21 @@ function RepairModal({data,upd,init,close}){
             <select value={cn} onChange={ev=>setCn(ev.target.value)}>{CONSOLES.map(c=><option key={c}>{c}</option>)}</select></div>
         </div>
         {cn==='Другая консоль'&&<div className="fr"><label>Название консоли</label><input value={cnCustom} onChange={ev=>setCnCustom(ev.target.value)} placeholder="Steam Deck, PS5..."/></div>}
-        <div className="fr-2">
-          <div className="fr"><label>Цвет</label>
-            <select value={color} onChange={ev=>setColor(ev.target.value)}>{colors.map(c=><option key={c}>{c}</option>)}</select></div>
-          <div className="fr"><label>Серийный номер</label><input value={sn} onChange={ev=>setSn(ev.target.value)} placeholder="XAW70123456"/></div>
-        </div>
+        <div className="fr"><label>Серийный номер</label><input value={sn} onChange={ev=>setSn(ev.target.value)} placeholder="XAW70123456"/></div>
         <div className="fr-3">
           <div className="fr"><label>Доход ₽</label><input type="number" value={income} onChange={ev=>setIncome(ev.target.value)} placeholder="4000"/></div>
           <div className="fr"><label>Затраты ₽</label><input type="number" value={expenses} onChange={ev=>setExpenses(ev.target.value)} placeholder="500"/></div>
           <div className="fr"><label>Доп. доход ₽</label><input type="number" value={addIncome} onChange={ev=>setAddIncome(ev.target.value)} placeholder="0"/></div>
         </div>
+        {addIncome>0&&<div className="fr"><label>За что доп. доход?</label><input value={addIncomeNote} onChange={ev=>setAddIncomeNote(ev.target.value)} placeholder="Доставка, срочность..."/></div>}
         <div className="fr-2">
           <div className="fr"><label>Клиент</label><input value={clientName} onChange={ev=>setClientName(ev.target.value)} placeholder="Иван Петров"/></div>
           <div className="fr"><label>Телефон</label><input value={clientPhone} onChange={ev=>setClientPhone(ev.target.value)} placeholder="+7 999 123-45-67"/></div>
+        </div>
+        <div className="fr-2">
+          <div className="fr"><label>Источник клиента</label>
+            <select value={clientSource} onChange={ev=>setClientSource(ev.target.value)}>{CLIENT_SOURCES.map(s=><option key={s}>{s}</option>)}</select></div>
+          <div className="fr"><label>Ссылка на объявление</label><input value={clientLink} onChange={ev=>setClientLink(ev.target.value)} placeholder="https://avito.ru/..."/></div>
         </div>
         <div className="fr-3">
           <div className="fr"><label>Принято</label><input type="date" value={dateReceived} onChange={ev=>setDateReceived(ev.target.value)}/></div>
