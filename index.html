@@ -301,6 +301,8 @@ const GD = {
   _fileId:   null,
   _token:    null,
 
+  _onTokenExpired: null, // колбэк — вызывается когда токен протух
+
   async _callFunction(action, extraData = {}) {
     const response = await fetch('/.netlify/functions/google-drive', {
       method: 'POST',
@@ -312,7 +314,17 @@ const GD = {
         ...extraData
       })
     });
-    if (!response.ok) throw new Error('Function call failed');
+
+    // Токен протух — чистим и уведомляем приложение
+    if (response.status === 401) {
+      this._token = null;
+      this._fileId = null;
+      localStorage.removeItem('gd_token');
+      if (this._onTokenExpired) this._onTokenExpired();
+      throw new Error('token_expired');
+    }
+
+    if (!response.ok) throw new Error('Function call failed: ' + response.status);
     return await response.json();
   },
 
@@ -383,9 +395,9 @@ const GD = {
     if (fid) {
       await this._callFunction('update', { data });
     } else {
-      const result = await this._callFunction('create');
+      // Один multipart запрос вместо create + update
+      const result = await this._callFunction('create_with_data', { data });
       this._fileId = result.id;
-      await this._callFunction('update', { data });
     }
   }
 };
@@ -442,6 +454,13 @@ function App(){
   // Init Google Drive on mount
   useEffect(()=>{
     if(!USE_GD)return;
+
+    // Когда токен протухает прямо во время работы — сбрасываем в need_auth
+    GD._onTokenExpired = () => {
+      setGdStatus('need_auth');
+      setGdMsg('Сессия истекла — войдите снова');
+    };
+
     GD.init(
       (remoteData)=>{
         if(remoteData){
