@@ -1,7 +1,6 @@
 // Серверная функция для работы с Google Drive API
 // API ключи читаются из переменных окружения Netlify
-
-const fetch = require('node-fetch');
+// Используем встроенный fetch (Node.js 18+, Netlify по умолчанию)
 
 // Fetch с таймаутом — не даём функции зависнуть на 30 секунд
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
