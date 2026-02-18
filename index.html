@@ -447,6 +447,9 @@ function App(){
   const[rService,setRService]=useState('');
   const[rStatus,setRStatus]=useState('');
   const[rSort,setRSort]=useState('date');
+  const[searchQuery,setSearchQuery]=useState('');
+  const[dateFrom,setDateFrom]=useState('');
+  const[dateTo,setDateTo]=useState('');
   const[gdStatus,setGdStatus]=useState(USE_GD?'init':'off');
   const[gdMsg,setGdMsg]=useState('');
   const[lastSaved,setLastSaved]=useState(null);
@@ -791,7 +794,9 @@ function App(){
     {module==='resale'&&<>
       {tab==='lots'&&<LotsTab data={data} upd={upd} expanded={expanded} toggleLot={toggleLot}
         openModal={openModal} fStatus={fStatus} setFStatus={setFStatus}
-        fMonth={fMonth} setFMonth={setFMonth} lotMonths={lotMonths} cartDb={cartDb}/>}
+        fMonth={fMonth} setFMonth={setFMonth} lotMonths={lotMonths} cartDb={cartDb}
+        searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+        dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}/>}
       {tab==='sales'&&<HistTab data={data} hMonth={hMonth} setHMonth={setHMonth}
         saleMonths={saleMonths} openModal={openModal}/>}
       {tab==='stats'&&<StatsTab data={data} stats={stats}/>}
@@ -818,14 +823,15 @@ function App(){
   </div>;
 }
 
-function LotsTab({data,upd,expanded,toggleLot,openModal,fStatus,setFStatus,fMonth,setFMonth,lotMonths,cartDb}){
-  const[search,setSearch]=React.useState('');
+function LotsTab({data,upd,expanded,toggleLot,openModal,fStatus,setFStatus,fMonth,setFMonth,lotMonths,cartDb,searchQuery,setSearchQuery,dateFrom,setDateFrom,dateTo,setDateTo}){
   const[sortBy,setSortBy]=React.useState('date'); // date | added
   let lots=[...data.lots];
   lots.sort((a,b)=>sortBy==='date'?new Date(b.date)-new Date(a.date):new Date(b.createdAt)-new Date(a.createdAt));
   if(fStatus)lots=lots.filter(l=>computeStatus(l,data.sales)===fStatus);
   if(fMonth)lots=lots.filter(l=>mKey(l.date)===fMonth);
-  if(search)lots=lots.filter(l=>(l.console+' '+l.color).toLowerCase().includes(search.toLowerCase()));
+  if(searchQuery)lots=lots.filter(l=>(l.console+' '+l.color+' '+(l.notes||'')).toLowerCase().includes(searchQuery.toLowerCase()));
+  if(dateFrom)lots=lots.filter(l=>l.date>=dateFrom);
+  if(dateTo)lots=lots.filter(l=>l.date<=dateTo);
   
   const exportToExcel=()=>{
     const ws_data=[['ID','Консоль','Цвет','Закупка','Продано','Прибыль','Статус','Дата']];
@@ -845,7 +851,10 @@ function LotsTab({data,upd,expanded,toggleLot,openModal,fStatus,setFStatus,fMont
     <div className="sec-hdr">
       <span className="sec-title">Лоты</span>
       <div className="filter-row">
-        <input type="text" className="search-inp" placeholder="🔍 Поиск..." value={search} onChange={e=>setSearch(e.target.value)} style={{padding:'6px 12px',background:'var(--surf2)',border:'1px solid var(--border)',borderRadius:'8px',color:'var(--text)',fontSize:'.85rem',minWidth:'180px'}}/>
+        <input type="text" className="search-inp" placeholder="🔍 Поиск..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{padding:'6px 12px',background:'var(--surf2)',border:'1px solid var(--border)',borderRadius:'8px',color:'var(--text)',fontSize:'.85rem',minWidth:'180px'}}/>
+        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{padding:'6px 10px',background:'var(--surf2)',border:'1px solid var(--border)',borderRadius:'8px',color:'var(--text)',fontSize:'.8rem'}} placeholder="От"/>
+        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{padding:'6px 10px',background:'var(--surf2)',border:'1px solid var(--border)',borderRadius:'8px',color:'var(--text)',fontSize:'.8rem'}} placeholder="До"/>
+        {(dateFrom||dateTo)&&<button className="btn btn-g btn-xs" onClick={()=>{setDateFrom('');setDateTo('');}}>✕</button>}
         <select className="sel-sm" value={fMonth} onChange={e=>setFMonth(e.target.value)}>
           <option value="">Все месяцы</option>
           {lotMonths.map(m=>{const[y,mo]=m.split('-');return<option key={m} value={m}>{MONTHS_FULL[parseInt(mo)-1]} {y}</option>;})}
@@ -1186,6 +1195,55 @@ function StatsTab({data,stats}){
       </div>
     </div>
     
+    
+    {/* Линейный график тренда прибыли */}
+    {monthly.length>1&&<div style={{background:'var(--surf)',border:'1px solid var(--border)',borderRadius:'var(--r2)',padding:'16px',marginBottom:'14px'}}>
+      <div className="month-title" style={{marginBottom:'16px'}}>📈 Тренд прибыли</div>
+      <div style={{position:'relative',height:'140px',paddingLeft:'40px',paddingBottom:'30px'}}>
+        <svg viewBox="0 0 600 100" style={{width:'100%',height:'100%'}} preserveAspectRatio="none">
+          {/* Сетка */}
+          <line x1="0" y1="50" x2="600" y2="50" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="3,3"/>
+          <line x1="0" y1="0" x2="600" y2="0" stroke="var(--border)" strokeWidth="0.5"/>
+          <line x1="0" y1="100" x2="600" y2="100" stroke="var(--border)" strokeWidth="0.5"/>
+          {/* Линия прибыли */}
+          <polyline
+            points={monthly.map((m,i)=>{
+              const val=m.profit;
+              const x=(i/(monthly.length-1))*600;
+              const y=50-(val/maxVal)*45;
+              return `${x},${y}`;
+            }).join(' ')}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth="2"
+          />
+          {/* Точки */}
+          {monthly.map((m,i)=>{
+            const val=m.profit;
+            const x=(i/(monthly.length-1))*600;
+            const y=50-(val/maxVal)*45;
+            return <circle key={i} cx={x} cy={y} r="3" fill={val>=0?'var(--accent)':'var(--red)'}/>;
+          })}
+        </svg>
+        {/* Подписи осей */}
+        <div style={{position:'absolute',left:'0',top:'50%',transform:'translateY(-50%)',fontSize:'.7rem',color:'var(--t3)',fontFamily:'var(--mono)'}}>
+          0
+        </div>
+        <div style={{position:'absolute',left:'0',top:'0',fontSize:'.7rem',color:'var(--t3)',fontFamily:'var(--mono)'}}>
+          {new Intl.NumberFormat('ru-RU',{notation:'compact'}).format(Math.round(maxVal))}
+        </div>
+        <div style={{position:'absolute',left:'0',bottom:'0',fontSize:'.7rem',color:'var(--t3)',fontFamily:'var(--mono)'}}>
+          {new Intl.NumberFormat('ru-RU',{notation:'compact'}).format(Math.round(-maxVal))}
+        </div>
+        {/* Месяцы снизу */}
+        <div style={{position:'absolute',bottom:'-25px',left:'40px',right:'0',display:'flex',justifyContent:'space-between'}}>
+          {monthly.map((m,i)=>{
+            const[y,mo]=m.key.split('-');
+            return <span key={i} style={{fontSize:'.68rem',color:'var(--t3)',fontFamily:'var(--mono)'}}>{MONTHS_RU[parseInt(mo)-1]}</span>;
+          })}
+        </div>
+      </div>
+    </div>}
     {monthly.length>0&&<div className="month-chart">
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
         <div className="month-title">📈 {chartType==='profit'?'Прибыль':'Выручка'} по месяцам</div>
@@ -2051,6 +2109,13 @@ function RepairModal({data,upd,init,close}){
   const[adCost,setAdCost]=React.useState(e?.adCost?.toString()||'');
   const[notes,setNotes]=React.useState(e?.notes||'');
   
+  // Автозаполнение даты возврата = дате приёмки (только для новых заказов)
+  React.useEffect(()=>{
+    if(!e&&dateReceived&&!dateCompleted){
+      setDateCompleted(dateReceived);
+    }
+  },[dateReceived]);
+  
   // Автозаполнение отчислений 4% для карты
   React.useEffect(()=>{
     if(payMethod==='Карта/Перевод'&&income){
@@ -2344,4 +2409,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
-
