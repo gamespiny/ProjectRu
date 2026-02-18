@@ -406,29 +406,9 @@ const GD = {
 const USE_GD = true; // Netlify всегда использует Google Drive
 const SKEY='cf_v3';
 const loadState=()=>{try{const r=localStorage.getItem(SKEY);if(r)return JSON.parse(r);}catch(e){}return null;};
-
-// Защита от бесконечных циклов сохранения (debounce)
-let lastSaveAttempt = 0;
-let saveTimeout = null;
 const saveState=s=>{
-  // Локальный кэш сохраняем сразу
   try{localStorage.setItem(SKEY,JSON.stringify(s));}catch(e){}
-  
-  // Drive — с задержкой и защитой от спама
-  if(USE_GD) {
-    const now = Date.now();
-    // Если последняя попытка была меньше 2 секунд назад — откладываем
-    if(now - lastSaveAttempt < 2000) {
-      clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => {
-        lastSaveAttempt = Date.now();
-        GD.save(s).catch(err => console.warn('GD save failed:', err));
-      }, 2000);
-    } else {
-      lastSaveAttempt = now;
-      GD.save(s).catch(err => console.warn('GD save failed:', err));
-    }
-  }
+  if(USE_GD) GD.save(s).catch(()=>{});
 };
 
 const makeDemoData=()=>{
@@ -520,6 +500,59 @@ function App(){
   };
 
   const gdSignOut=()=>{GD.signOut();setGdStatus('need_auth');};
+
+  // Экспорт данных в JSON
+  const exportData = () => {
+    const dataStr = JSON.stringify(data, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `consoleflip-backup-${new Date().toISOString().slice(0,10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Импорт данных из JSON
+  const importData = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const importedData = JSON.parse(ev.target.result);
+          // Валидация базовой структуры
+          if (!importedData.lots || !Array.isArray(importedData.lots)) {
+            alert('❌ Неверный формат файла');
+            return;
+          }
+          if (confirm('⚠️ Все текущие данные будут заменены. Продолжить?')) {
+            setData(importedData);
+            saveState(importedData);
+            if (USE_GD && GD._token) {
+              GD.save(importedData).then(() => {
+                setGdStatus('ok');
+                setLastSaved(new Date());
+                alert('✅ Данные успешно восстановлены');
+              }).catch(() => {
+                alert('⚠️ Данные восстановлены локально, но синхронизация с Google Drive не удалась');
+              });
+            } else {
+              alert('✅ Данные успешно восстановлены');
+            }
+          }
+        } catch (err) {
+          alert('❌ Ошибка чтения файла: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
 
   const upd=useCallback(fn=>{
     setData(d=>{
@@ -644,6 +677,11 @@ function App(){
           <span style={{display:'inline-block',animation:'spin .8s linear infinite'}}>⟳</span> сохранение...
         </div>}
         {USE_GD&&gdStatus==='need_auth'&&<button className="btn btn-g btn-sm" onClick={gdSignIn} style={{fontSize:'.72rem',padding:'5px 10px'}}>☁️ Войти</button>}
+        {/* Кнопки бэкапа */}
+        <div style={{display:'flex',gap:'5px',marginLeft:'8px',borderLeft:'1px solid var(--border)',paddingLeft:'8px'}}>
+          <button className="btn btn-g btn-xs" onClick={exportData} title="Скачать все данные">💾 Экспорт</button>
+          <button className="btn btn-g btn-xs" onClick={importData} title="Загрузить данные из файла">📥 Импорт</button>
+        </div>
         {module==='resale'&&<button className="btn btn-a" onClick={()=>openModal('lot',{})}>+ Лот</button>}
         {module==='repair'&&<button className="btn btn-a" onClick={()=>openModal('repair',{})}>+ Заказ</button>}
       </div>
@@ -2306,3 +2344,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
+
