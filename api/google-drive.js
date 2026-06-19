@@ -14,7 +14,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
 }
 
 // Vercel: экспортируем default function вместо exports.handler
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
